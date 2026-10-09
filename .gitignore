@@ -1,0 +1,22 @@
+node_modules/
+tools/.cache/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+*.tmp
+# PDF ต้นฉบับจาก สทศ. รวม ~270 MB (ไฟล์ใหญ่สุด 59 MB) ไม่เก็บใน repo — ดาวน์โหลดได้จากลิงก์ในหน้าเว็บ
+source/*.pdf
+
+# PDF ตรวจทาน (สร้างใหม่ได้ด้วย tools/review-pdf.mjs, tools/review-all.mjs) และชุดไฟล์นำเข้า (สร้างด้วย tools/bundle-import.mjs) ไม่ขึ้น repo
+review/*.pdf
+import-bundles/
+
+# �Ҿ�鹩�Ѻ PNG ��͹�պ�Ѵ�� WebP (�������ͧ��ҹ��)
+images-original/
+_unused-images/
+tools/_*.mjs
+
+# �Ҿ˹�Ҩͷ��ͺ��Ͷ��
+review/*.png

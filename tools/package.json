@@ -1,0 +1,17 @@
+{
+  "name": "onet-science-tools",
+  "private": true,
+  "type": "module",
+  "description": "เครื่องมือเตรียมข้อมูลและทดสอบ (ไม่ได้ใช้บนหน้าเว็บ)",
+  "scripts": {
+    "check": "node check-tsv.mjs",
+    "serve": "node test/server.mjs",
+    "test": "node test/browser.mjs"
+  },
+  "dependencies": {
+    "isomorphic-git": "^1.27.1",
+    "mupdf": "^1.3.0",
+    "puppeteer-core": "^23.0.0",
+    "sharp": "^0.33.5"
+  }
+}
