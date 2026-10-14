@@ -79,8 +79,9 @@ console.log("push แล้ว");
 // 6) รอ Pages build ของ commit นี้
 const t0 = Date.now(); let st = "";
 while (Date.now() - t0 < 6 * 60e3) {
-  const r = run("gh", ["api", `repos/${REPO}/pages/builds/latest`, "--jq", ".status+\" \"+.commit"], dst, { quiet: true });
-  const [s, cm] = (r.stdout || "").trim().split(" ");
+  const r = run("gh", ["api", `repos/${REPO}/pages/builds/latest`], dst, { quiet: true });
+  let b = {}; try { b = JSON.parse(r.stdout); } catch {}
+  const s = b.status, cm = b.commit;
   if (cm === sha && s !== st) { st = s; console.log("Pages: " + s); }
   if (cm === sha && s === "built") break;
   if (cm === sha && s === "errored") die("Pages build ล้มเหลว — ดู https://github.com/" + REPO + "/actions");
