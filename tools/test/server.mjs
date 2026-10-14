@@ -83,7 +83,7 @@ http.createServer((req, res) => {
   const file = path.join(ROOT, rel);
   if (!file.startsWith(ROOT) || !/^(index\.html|images\/|figs\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
   let body = fs.readFileSync(file);
-  if (rel === "index.html") body = body.toString("utf8").replace("const API_URL = '';", "const API_URL = '/api';");
+  if (rel === "index.html") body = body.toString("utf8").replace(/const API_URL = '[^']*';/, "const API_URL = '/api';");
   res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
   res.end(body);
 }).listen(PORT, () => console.log(`เปิด http://localhost:${PORT} (ผู้ใช้ admin รหัสผ่านอยู่ใน tools/.cache/admin.json)`));

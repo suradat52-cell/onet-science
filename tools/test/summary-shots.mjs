@@ -4,14 +4,14 @@
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
-import { TOOLS } from "../lib.mjs";
+import { TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
 const [lv, std] = process.argv.slice(2);
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8"));
 const OUT = path.join(TOOLS, ".cache", "summary"); fs.mkdirSync(OUT, { recursive: true });
 const tag = `${lv}-${std.replace(/\s/g, "")}`;
-const browser = await puppeteer.launch({ executablePath: EDGE, headless: true });
+const browser = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API });
 const page = await browser.newPage();
 page.on("pageerror", e => console.log("JS error:", e.message));
 async function open() {

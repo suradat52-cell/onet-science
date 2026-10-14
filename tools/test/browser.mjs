@@ -5,7 +5,7 @@
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
-import { at, TOOLS, POINTS, expectedScore, imgsOf, alts, isRight } from "../lib.mjs";
+import { at, TOOLS, POINTS, expectedScore, imgsOf, alts, isRight, BLOCK_REAL_API } from "../lib.mjs";
 
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
   "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
@@ -34,7 +34,7 @@ function wrongOf(type, key, nChoices, nth) {
 const results = [];
 const check = (name, ok, info = "") => { results.push({ name, ok, info }); console.log((ok ? "PASS " : "FAIL ") + name + (ok || !info ? "" : "  " + info)); };
 
-const browser = await puppeteer.launch({ executablePath: EDGE, headless: true });
+const browser = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API });
 const page = await browser.newPage();
 await page.setViewport({ width: 900, height: 1000 });
 page.on("dialog", d => d.accept());

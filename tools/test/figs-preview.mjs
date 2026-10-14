@@ -4,7 +4,7 @@
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
-import { at, TOOLS } from "../lib.mjs";
+import { at, TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
 const [lv, ...names0] = process.argv.slice(2);
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
@@ -16,7 +16,7 @@ const seenF = path.join(OUT, `seen-${lv}.json`), seen = fs.existsSync(seenF) ? J
 const all = Object.keys(FIGS[lv]);
 const names = names0.length ? names0 : all.filter(n => !seen.includes(n));
 if (!names.length) { console.log("ไม่มีภาพใหม่ (ระบุชื่อภาพเพื่อดูซ้ำ)"); process.exit(0); }
-const browser = await puppeteer.launch({ executablePath: EDGE, headless: true });
+const browser = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API });
 const page = await browser.newPage(); await page.setViewport({ width: 480, height: 800, deviceScaleFactor: 2 });
 for (const n of names) {
   if (!FIGS[lv][n]) { console.log("ไม่มีภาพ", n); continue; }

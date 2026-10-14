@@ -4,7 +4,7 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer-core";
-import { at } from "../lib.mjs";
+import { at, BLOCK_REAL_API } from "../lib.mjs";
 
 const cfg = JSON.parse(fs.readFileSync(at("tools", ".cache", "admin.json"), "utf8"));
 const BASE = `http://localhost:${cfg.port}`;
@@ -16,7 +16,7 @@ const dir = at("import-bundles");
 const files = fs.readdirSync(dir).sort();
 const TAB = { 1: ["bp", "#bpt", "impbp"], 2: ["bank", "#qt", "impq"], 3: ["sm", "#smt", "impsm"], 4: ["sol", "#slt", "impsol"] };
 
-const b = await puppeteer.launch({ executablePath: EDGE, headless: true }), p = await b.newPage();
+const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.setViewport({ width: 1000, height: 900 });
 const idle = () => p.waitForNetworkIdle({ idleTime: 300 });
 await p.goto(BASE + "/", { waitUntil: "networkidle0" }); await p.evaluate(() => localStorage.clear());

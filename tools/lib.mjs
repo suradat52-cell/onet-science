@@ -33,3 +33,6 @@ export function expectedScore(lv, year, type, ans, key) {
 // ไฟล์ภาพทั้งหมดของหนึ่งแถว TSV: ลิงก์รูป (คอลัมน์ 7) + ข้อความย่อย/ตัวเลือกที่เป็นชื่อไฟล์ภาพล้วน (เช่น M3-2567-34-1.png)
 export const IMG_NAME = /^[\w.-]+\.(png|jpe?g|gif|webp)$/i;
 export const imgsOf = c => [c[6], ...(c[7] || "").split("||")].map(s => (s || "").trim()).filter(s => IMG_NAME.test(s));
+
+// ชุดทดสอบเบราว์เซอร์ต้องคุยกับเซิร์ฟเวอร์จำลอง (/api) เท่านั้น: บล็อกการเชื่อมต่อไป Apps Script จริง ถ้าหลุดไปจะ error ทันที
+export const BLOCK_REAL_API = ['--host-resolver-rules=MAP script.google.com ~NOTFOUND, MAP script.googleusercontent.com ~NOTFOUND'];

@@ -90,4 +90,4 @@ while (Date.now() - t0 < 6 * 60e3) {
 if (st !== "built") die("รอ Pages build เกิน 6 นาที — ตรวจ https://github.com/" + REPO + "/actions");
 const res = await fetch(SITE + "?v=" + sha.slice(0, 7));
 console.log(`✓ เสร็จ: ${SITE} (HTTP ${res.status}) — ถ้าเบราว์เซอร์ยังเห็นของเก่า กด Ctrl+F5`);
-process.exit(res.ok ? 0 : 1);
+process.exitCode = res.ok ? 0 : 1; // ไม่ใช้ process.exit() ตรงนี้: Node บน Windows ฟ้อง Assertion failed หลัง fetch

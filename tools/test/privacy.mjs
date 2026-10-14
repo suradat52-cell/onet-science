@@ -3,7 +3,7 @@
 // สร้างโรงเรียนทดสอบเพิ่มของตัวเอง (โรงเรียนที่ 2) เพื่อไม่กระทบรหัสห้องที่ชุดทดสอบอื่นใช้
 import fs from "fs";
 import puppeteer from "puppeteer-core";
-import { at } from "../lib.mjs";
+import { at, BLOCK_REAL_API } from "../lib.mjs";
 
 const cfg = JSON.parse(fs.readFileSync(at("tools", ".cache", "admin.json"), "utf8"));
 const BASE = `http://localhost:${cfg.port}`;
@@ -71,7 +71,7 @@ t("รหัสใหม่ใช้ได้", (await api("listStudents", { cod
 
 /* หน้าเว็บ: หน้าแรกไม่แสดงรายชื่อโรงเรียนหรือนักเรียน ต้องกรอกรหัสก่อน */
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
-const b = await puppeteer.launch({ executablePath: EDGE, headless: true }), p = await b.newPage();
+const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.goto(BASE + "/", { waitUntil: "networkidle0" });
 await p.evaluate(() => localStorage.clear()); await p.goto(BASE + "/", { waitUntil: "networkidle0" });
 let txt = await p.evaluate(() => document.body.innerText);
