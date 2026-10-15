@@ -71,6 +71,7 @@ if (chk.status) die("predeploy-check ไม่ผ่าน — ยังไม�
 
 // 4) commit
 git(["add", "-A"]);
+git(["add", "-f", "content"]); // .gitignore ของโฟลเดอร์งานกัน content/ ไว้ (สร้างใหม่ได้) แต่ในโฟลเดอร์ deploy ต้องเก็บ
 if (!git(["status", "--porcelain"]).stdout.trim()) { console.log("ไม่มีอะไรเปลี่ยนจาก commit ล่าสุดบน GitHub — ไม่ต้องขึ้นใหม่"); process.exit(0); }
 const subject = run("git", ["log", "-1", "--format=%s"], ROOT).stdout.trim();
 const msg = msgArg || `อัปเดตเว็บ ${new Date().toISOString().slice(0, 16).replace("T", " ")} · ล่าสุดในโฟลเดอร์งาน: ${subject}`;
