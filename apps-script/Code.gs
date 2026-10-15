@@ -12,7 +12,7 @@ const SHEETS = {
   Rooms:     ['code', 'schoolId', 'level', 'room', 'active'], // รหัสห้องเรียน 6 ตัว ต่อ (โรงเรียน + ระดับ + ห้อง)
   Attempts:  ['id', 'ts', 'schoolId', 'studentId', 'level', 'mode', 'standard', 'total', 'correct', 'detail', 'score', 'maxScore', 'status', 'answers', 'ms'] // status: ok = ตรวจซ้ำแล้ว · pending = ดึงเฉลยไม่ได้ตอนนั้น (เก็บคำตอบไว้ใน answers รอ regrade) · ms = เวลาที่ใช้บันทึก
 };
-const WRITES = ['roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
+const WRITES = ['roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade', 'purgeAttempts']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
 // ที่อยู่ไฟล์เนื้อหาของเว็บ (GitHub Pages) — ต้องแก้ถ้าย้ายโดเมน
 const CONTENT_BASE = 'https://suradat52-cell.github.io/onet-science/content/';
 
@@ -70,7 +70,7 @@ function qType(q) { return TYPES.indexOf(q.type) >= 0 ? q.type : (q.choices ? 'm
 function ss() { return SpreadsheetApp.getActiveSpreadsheet(); }
 function uid() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
 function on(r) { return String(r.active).toUpperCase() !== 'N'; }
-const CACHED_TABLES = { Schools: 1, Students: 1, Rooms: 1 }, TBL_TTL = 120; // แคช 2 นาที: enter/progress ไม่ต้องเปิดชีตทุกครั้ง (ลดคำขอที่ชนกันที่ชีต)
+const CACHED_TABLES = { Schools: 1, Students: 1, Rooms: 1 }, TBL_TTL = 300; // แคช 2 นาที: enter/progress ไม่ต้องเปิดชีตทุกครั้ง (ลดคำขอที่ชนกันที่ชีต)
 let NOCACHE = false;       // true ระหว่างคำสั่งที่เขียนข้อมูล: อ่านสดจากชีตเสมอ (เลขแถวต้องตรง)
 function dropTblCache() { try { CacheService.getScriptCache().removeAll(['t_Schools', 't_Students', 't_Rooms']); } catch (e) {} }
 function tbl(name) {
@@ -86,6 +86,10 @@ function ensureHeaders(name) {
   const c = CacheService.getScriptCache(); if (c.get('h_' + name)) return;
   const s = ss().getSheetByName(name), head = s.getRange(1, 1, 1, Math.max(s.getLastColumn(), 1)).getValues()[0].map(String);
   SHEETS[name].forEach(function (k, i) { if (head.indexOf(k) < 0) s.getRange(1, i + 1).setValue(k); });
+  if (name === 'Attempts') { // เตรียมแถวล่วงหน้า: ต่อแถวเมื่อเหลือน้อย แล้วตั้งรูปแบบข้อความทั้งแท็บ (appendRow ไม่ต้องจัดรูปแบบทีละครั้ง)
+    if (s.getLastRow() > s.getMaxRows() - 150) s.insertRowsAfter(s.getMaxRows(), 1000);
+    s.getRange(1, 1, s.getMaxRows(), SHEETS[name].length).setNumberFormat('@');
+  }
   c.put('h_' + name, '1', 3600);
 }
 function toRow(name, o) { return SHEETS[name].map(function (k) { return o[k] === undefined || o[k] === null ? '' : String(o[k]); }); }
@@ -122,12 +126,13 @@ function privateKeys(level, year) {
   return n ? out : null;
 }
 function loadKeys(level, year, rev) {
-  const priv = privateKeys(level, year); if (priv) return priv;
+  tr('keys-start-' + year); const priv = privateKeys(level, year); if (priv) return priv;
   const ck = 'k_' + level + '_' + year + '_' + String(rev || ''), cache = CacheService.getScriptCache(), hit = cache.get(ck);
-  if (hit) return JSON.parse(hit);
+  if (hit) { tr('keys-cache-hit-' + year); return JSON.parse(hit); }
+  tr('keys-fetch-' + year);
   const r = UrlFetchApp.fetch(CONTENT_BASE + level + '/k-' + year + '.json' + (rev ? '?v=' + encodeURIComponent(rev) : ''), { muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('โหลดเฉลยปี ' + year + ' ไม่ได้ (HTTP ' + r.getResponseCode() + ')');
-  const txt = r.getContentText();
+  const txt = r.getContentText(); tr('keys-fetched-' + year);
   try { cache.put(ck, txt, 21600); } catch (e) { /* ไฟล์ใหญ่เกิน 100 KB = ไม่แคช */ }
   return JSON.parse(txt);
 }
@@ -171,10 +176,15 @@ function ensureRooms(schoolId, level) {
   Object.keys(cnt).forEach(function (room) { if (!have[room]) { have[room] = { code: newCode(), schoolId: schoolId, level: level, room: room, active: 'Y' }; add('Rooms', have[room]); } });
   return Object.keys(cnt).sort().map(function (room) { return { room: room, code: have[room].code, count: cnt[room] }; });
 }
+function appendAttempt(o) {
+  ensureHeaders('Attempts');
+  const s = ss().getSheetByName('Attempts');
+  s.appendRow(toRow('Attempts', o));
+}
 // ค้นหา attemptId โดยอ่านเฉพาะคอลัมน์ id (ไม่อ่านทั้งแท็บ) แล้วอ่านแถวที่เจอ
 function findAttempt(aid) {
   const s = ss().getSheetByName('Attempts'), n = s.getLastRow() - 1; if (n < 1) return null;
-  const ids = s.getRange(2, 1, n, 1).getValues(); let at = -1;
+  tr('fa-read-ids'); const ids = s.getRange(2, 1, n, 1).getValues(); let at = -1; tr('fa-ids-read');
   for (let i = ids.length - 1; i >= 0; i--) if (String(ids[i][0]) === aid) { at = i; break; }
   if (at < 0) return null;
   const row = s.getRange(at + 2, 1, 1, SHEETS.Attempts.length).getValues()[0], o = { _row: at + 2 };
@@ -196,23 +206,37 @@ function regradePending() {
       const sum = function (f) { return Math.round(items.reduce(function (n, x) { return n + x[f]; }, 0) * 100) / 100; };
       t.total = items.length; t.correct = sum('ok'); t.score = sum('earned'); t.maxScore = sum('points'); t.status = 'ok'; t.answers = '';
       t.detail = JSON.stringify(items.map(function (x) { return { q: t.level + '-' + x.k.replace('/', '-'), ok: x.ok, s: x.s }; }));
-      setRow('Attempts', t); done++;
+      setRow('Attempts', t); CacheService.getScriptCache().remove('p_' + t.studentId); done++;
     } catch (e) { still++; }
   });
   return { regraded: done, stillPending: still, notTried: left };
+}
+/* ---------- รอยเวลาของแต่ละขั้น (หาจุดที่ค้าง) ----------
+   ทุกขั้นพิมพ์ console.log "T <รหัสคำขอ> <ขั้น> <ms>" · ถ้าคำขอส่ง trace:1 มา จะเขียนรอยลงแคช (tr_<รหัส>) ทุกขั้นด้วย → action "traces" อ่านได้ทันที
+   (ขั้นสุดท้ายที่บันทึกไว้ของงานที่ถูกยกเลิก = ขั้นที่มันหยุดอยู่) */
+let TR = null;
+function trStart(p, T0) {
+  const id = uid(); TR = { id: id, a: p && p.action || '', t0: T0, persist: !!(p && p.trace), s: [] };
+  if (TR.persist) { try { const c = CacheService.getScriptCache(), idx = JSON.parse(c.get('tr_idx') || '[]'); idx.push(id); c.put('tr_idx', JSON.stringify(idx.slice(-40)), 21600); } catch (e) {} }
+}
+function tr(stage) {
+  if (!TR) return; const ms = Date.now() - TR.t0; TR.s.push([stage, ms]);
+  if (!TR.persist) return; // ค่าเริ่มต้น: ปิดรอยเวลา (ใช้งานจริงไม่เสียเวลาเขียนแคช/บันทึก) · เปิดเฉพาะคำขอที่ส่ง trace:1
+  console.log('T ' + TR.id + ' ' + TR.a + ' ' + stage + ' ' + ms);
+  { try { CacheService.getScriptCache().put('tr_' + TR.id, JSON.stringify({ id: TR.id, a: TR.a, t0: TR.t0, s: TR.s }), 21600); } catch (e) {} }
 }
 /* ---------- entry points ---------- */
 function doGet() { return ContentService.createTextOutput(JSON.stringify({ ok: true, data: 'onet-science api' })).setMimeType(ContentService.MimeType.JSON); }
 function doPost(e) {
   let out, lock = null, p; const T0 = Date.now();
   try {
-    p = JSON.parse((e.postData && e.postData.contents) || '{}');
+    p = JSON.parse((e.postData && e.postData.contents) || '{}'); trStart(p, T0); tr('recv');
     const fn = API[p.action];
     if (!fn) throw new Error('ไม่รู้จักคำสั่ง: ' + p.action);
-    if (WRITES.indexOf(p.action) >= 0) { lock = LockService.getScriptLock(); lock.waitLock(25000); NOCACHE = true; }
-    out = { ok: true, data: fn(p) };
+    if (WRITES.indexOf(p.action) >= 0) { tr('lock-wait'); lock = LockService.getScriptLock(); lock.waitLock(25000); NOCACHE = true; tr('lock-got'); }
+    tr('run'); out = { ok: true, data: fn(p) }; tr('run-done');
   } catch (err) { out = { ok: false, error: String(err.message || err) }; }
-  finally { NOCACHE = false; if (lock) { dropTblCache(); lock.releaseLock(); } }
+  finally { NOCACHE = false; if (lock) { tr('cache-drop'); dropTblCache(); lock.releaseLock(); tr('lock-released'); } tr('end'); }
   try {
     const ms = Date.now() - T0, act = (out && out.ok ? '' : 'ERR ') + (p ? p.action : '');
     console.log(JSON.stringify({ act: act, ms: ms })); // เวลาที่ใช้ต่อคำสั่ง ดูได้ในหน้า "การดำเนินการ"
@@ -232,16 +256,19 @@ const API = {
   // ประวัติและความคืบหน้าของนักเรียนคนนี้ (โหลดเบื้องหลังหลังเปิดหน้าแรก)
   progress: function (p) {
     const room = roomOf(p), stu = studentIn(room, p.studentId);
-    const at = tbl('Attempts').filter(function (t) { return t.studentId === stu.id; }), done = {};
+    const pc = CacheService.getScriptCache(), hit = pc.get('p_' + stu.id); if (hit) return JSON.parse(hit);
+    const seen = {}, at = tbl('Attempts').filter(function (t) { if (t.studentId !== stu.id || seen[t.id]) return false; seen[t.id] = 1; return true; }), done = {};
     at.forEach(function (t) { parseDetail(t).forEach(function (d) { const x = done[d.s] = done[d.s] || { done: 0, correct: 0 }; x.done++; x.correct += d.ok; }); });
-    return { done: done, history: at.slice(-8).reverse().map(function (t) { return { ts: t.ts, mode: t.mode, standard: t.standard, total: t.total, correct: t.correct, score: t.score, maxScore: t.maxScore }; }) };
+    const out = { done: done, history: at.slice(-8).reverse().map(function (t) { return { ts: t.ts, mode: t.mode, standard: t.standard, total: t.total, correct: t.correct, score: t.score, maxScore: t.maxScore }; }) };
+    try { pc.put('p_' + stu.id, JSON.stringify(out), 21600); } catch (e) {}
+    return out;
   },
   // บันทึกผลการทำข้อสอบ: ตรวจคำตอบซ้ำจากกุญแจเฉลยเอง แล้วบันทึกค่าที่ตรวจได้ (ไม่เชื่อคะแนนจากเครื่องนักเรียน)
   // p = { code, studentId, attemptId, mode, standard, keys: ["ปี/ข้อ",...], answers: { "ปี/ข้อ": "คำตอบ" }, rev: { "ปี": "<hash ของ k-ปี.json>" }, reveal?: true }
   // secure: true = โหมดสอบของครู: ตอบกลับรายข้อเฉพาะถูก/ผิดและคะแนน ไม่ส่งเฉลยหรือคำตอบที่ถูก · reveal: true = ส่งเฉลยรายข้อด้วย (โหมดฝึก/เทียบผล)
   // attemptId เดิมส่งซ้ำ = ไม่บันทึกซ้ำ
   submitAttempt: function (p) {
-    const T = Date.now(), room = roomOf(p), st = studentIn(room, p.studentId), level = st.level;
+    const T = Date.now(); tr('sa-start'); const room = roomOf(p); tr('sa-room'); const st = studentIn(room, p.studentId), level = st.level; tr('sa-student');
     const keys = (p.keys || []).map(String).slice(0, 150), ans = p.answers || {}, rev = p.rev || {}, files = {};
     let items = [], pending = false, why = '';
     try {
@@ -251,25 +278,53 @@ const API = {
         const t = e.t, a = normAns(t, ans[k]), key = normAns(t, e.a), pts = points(level, t), ok = isRight(t, a, key) ? 1 : 0;
         items.push({ k: k, ok: ok, earned: earnedOf(level, m[1], t, a, key, pts), points: pts, s: e.s, answer: key, yours: a });
       });
-    } catch (err) { pending = true; why = String(err.message || err); items = []; } // ดึงเฉลยไม่ได้ (GitHub ช้า/ไฟล์ยังไม่ขึ้น): ไม่ทำให้คะแนนหาย
+      tr('sa-graded');
+    } catch (err) { pending = true; why = String(err.message || err); items = []; tr('sa-keys-failed'); } // ดึงเฉลยไม่ได้ (GitHub ช้า/ไฟล์ยังไม่ขึ้น): ไม่ทำให้คะแนนหาย
     const sum = function (f) { return Math.round(items.reduce(function (n, i) { return n + i[f]; }, 0) * 100) / 100; };
     const ck = p.chk || {};
     const res = pending ? { total: keys.length, correct: +ck.correct || 0, score: +ck.score || 0, maxScore: 0, pending: true } : { total: items.length, correct: sum('ok'), score: sum('earned'), maxScore: sum('points') };
     const aid = String(p.attemptId || '').replace(/[^\w-]/g, '').slice(0, 40) || uid();
-    const lock = LockService.getScriptLock(); lock.waitLock(25000); // ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จแล้ว)
-    try {
-      const prior = findAttempt(aid);
-      if (prior) { res.total = +prior.total; res.correct = +prior.correct; res.score = +prior.score; res.maxScore = +prior.maxScore; res.pending = prior.status === 'pending'; res.dup = true; }
-      else add('Attempts', { id: aid, ts: new Date().toISOString(), schoolId: st.schoolId, studentId: st.id, level: level, mode: p.mode || '', standard: p.standard || '', total: res.total, correct: res.correct,
+    // ไม่ใช้ล็อก: เขียนแถวด้วย appendRow (Google ต่อท้ายทีละแถวแบบ atomic ไม่ทับกัน) · กันซ้ำด้วย attemptId: ตัวทำเครื่องหมายในแคช + ตัวอ่านคะแนนข้ามแถว id ซ้ำ
+    // (ข้อมูลจากการวัดจริง: ขอล็อก+ปล่อยล็อกใช้ ~0.4 วินาทีต่อครั้ง และเป็นจุดที่ทำให้คำขอต้องรอกัน)
+    const cache = CacheService.getScriptCache(), mark = cache.get('aid_' + aid);
+    if (mark) { const m = JSON.parse(mark); res.total = m.total; res.correct = m.correct; res.score = m.score; res.maxScore = m.maxScore; res.pending = !!m.pending; res.dup = true; tr('sa-dup'); }
+    else {
+      cache.put('aid_' + aid, JSON.stringify({ total: res.total, correct: res.correct, score: res.score, maxScore: res.maxScore, pending: pending }), 21600); tr('sa-marked');
+      appendAttempt({ id: aid, ts: new Date().toISOString(), schoolId: st.schoolId, studentId: st.id, level: level, mode: p.mode || '', standard: p.standard || '', total: res.total, correct: res.correct,
         detail: pending ? '' : JSON.stringify(items.map(function (i) { return { q: level + '-' + i.k.replace('/', '-'), ok: i.ok, s: i.s }; })), score: res.score, maxScore: res.maxScore,
         status: pending ? 'pending' : 'ok', answers: pending ? JSON.stringify({ keys: keys, answers: ans, rev: rev, why: why.slice(0, 120) }) : '', ms: Date.now() - T });
-    } finally { lock.releaseLock(); }
+      tr('sa-appended');
+      if (!pending) try { // ปรับความคืบหน้าในแคชของนักเรียนคนนี้ (ถ้ามีอยู่) แทนการล้างแล้วอ่านทั้งแท็บ Attempts ใหม่
+        const pk = 'p_' + st.id, hit = cache.get(pk);
+        if (hit) { const o = JSON.parse(hit); items.forEach(function (i) { const x = o.done[i.s] = o.done[i.s] || { done: 0, correct: 0 }; x.done++; x.correct += i.ok; });
+          o.history.unshift({ ts: new Date().toISOString(), mode: p.mode || '', standard: p.standard || '', total: String(res.total), correct: String(res.correct), score: String(res.score), maxScore: String(res.maxScore) }); o.history = o.history.slice(0, 8);
+          cache.put(pk, JSON.stringify(o), 21600); }
+      } catch (e) { cache.remove('p_' + st.id); }
+      else cache.remove('p_' + st.id);
+    }
     if (p.reveal || p.secure) res.items = items.map(function (i) { const o = { k: i.k, ok: i.ok, earned: i.earned, points: i.points }; if (p.reveal && !p.secure) { o.answer = i.answer; o.yours = i.yours; } return o; });
     return res;
   },
   // ตรวจซ้ำคะแนนที่ค้างเป็น pending (ผู้ดูแลกลางเรียก หรือรัน regradePending() ในตัวแก้ไข) ครั้งละไม่เกิน 40 รายการ
   regrade: function (p) {
     auth(p, true); return regradePending();
+  },
+  // รอยเวลาล่าสุดของคำขอที่ส่ง trace:1 (ไม่แตะชีต ใช้ได้แม้ชีตค้าง) · มีแต่ชื่อขั้นและเวลา
+  traces: function (p) {
+    const c = CacheService.getScriptCache(), idx = JSON.parse(c.get('tr_idx') || '[]'), out = [];
+    idx.slice(-(+p.n || 40)).forEach(function (id) { const v = c.get('tr_' + id); if (v) out.push(JSON.parse(v)); });
+    return out;
+  },
+  // ลบแถวผลสอบทดสอบ: เฉพาะโรงเรียนที่ชื่อมีคำว่า "ทดสอบ" และ id ขึ้นต้นด้วย prefix ที่ระบุ (ต้องไม่ว่าง) — ผู้ดูแลกลางเท่านั้น
+  purgeAttempts: function (p) {
+    auth(p, true);
+    const prefix = String(p.prefix || ''); if (prefix.length < 4) throw new Error('ต้องระบุ prefix อย่างน้อย 4 ตัวอักษร');
+    const sc = tbl('Schools').filter(function (s) { return s.id === String(p.schoolId); })[0];
+    if (!sc || sc.name.indexOf('ทดสอบ') < 0) throw new Error('ลบได้เฉพาะโรงเรียนที่ชื่อมีคำว่า "ทดสอบ"');
+    const rows = tbl('Attempts').filter(function (t) { return t.schoolId === sc.id && t.id.indexOf(prefix) === 0; }).map(function (t) { return t._row; }).sort(function (a, b) { return b - a; });
+    const s = ss().getSheetByName('Attempts'); rows.forEach(function (rw) { s.deleteRow(rw); });
+    CacheService.getScriptCache().removeAll(tbl('Students').filter(function (x) { return x.schoolId === sc.id; }).map(function (x) { return 'p_' + x.id; }));
+    return { deleted: rows.length };
   },
   // ตรวจความช้า (อ่านอย่างเดียว ไม่เขียนข้อมูล): จับเวลาแต่ละขั้น — เปิดชีต นับเซลล์ทุกแท็บ อ่านแต่ละแท็บ ขอล็อก แคช UrlFetch ไป GitHub
   // เรียกได้นาทีละครั้ง (กันถูกยิงรัว) ไม่ต้องล็อกอิน เพราะถ้าระบบช้า/ค้างจะล็อกอินไม่ได้ · ผลลัพธ์มีแต่ชื่อแท็บ ขนาด และเวลา ไม่มีข้อมูลนักเรียน
@@ -372,7 +427,7 @@ const API = {
   report: function (p) {
     const a = auth(p), sid = scope(a, p.schoolId), by = {}, std = {};
     const stu = studentsOf(sid, p.level);
-    tbl('Attempts').filter(function (t) { return t.schoolId === sid && t.level === p.level; }).forEach(function (t) {
+    const seenA = {}; tbl('Attempts').filter(function (t) { if (t.schoolId !== sid || t.level !== p.level || seenA[t.id]) return false; seenA[t.id] = 1; return true; }).forEach(function (t) {
       const b = by[t.studentId] = by[t.studentId] || { n: 0, total: 0, correct: 0, last: '' };
       b.n++; b.total += +t.total; b.correct += +t.correct; b.last = t.ts;
       parseDetail(t).forEach(function (d) { const x = std[d.s] = std[d.s] || { total: 0, correct: 0 }; x.total++; x.correct += d.ok; });
