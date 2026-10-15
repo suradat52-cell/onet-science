@@ -7,7 +7,7 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer-core";
-import { at, imgsOf, IMG_NAME } from "./lib.mjs";
+import { at, imgsOf, IMG_NAME, BLOCK_REAL_API } from "./lib.mjs";
 import { parseSolutions } from "./solutions.mjs";
 
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(p => fs.existsSync(p));
@@ -131,7 +131,7 @@ fs.mkdirSync(at("tools", ".cache"), { recursive: true });
 fs.mkdirSync(at("review"), { recursive: true });
 const htmlFile = at("tools", ".cache", `review-all.html`), out = at("review", `REVIEW-ALL.pdf`);
 fs.writeFileSync(htmlFile, full);
-const b = await puppeteer.launch({ executablePath: EDGE, headless: true }), p = await b.newPage();
+const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.goto("file:///" + htmlFile.replace(/\\/g, "/"), { waitUntil: "networkidle0" });
 await p.pdf({ path: out, format: "A4", printBackground: true, displayHeaderFooter: true, margin: { top: "12mm", bottom: "14mm", left: "12mm", right: "12mm" },
   headerTemplate: "<span></span>", footerTemplate: `<div style="font-size:9px;width:100%;text-align:center;color:#666">ตรวจเฉลยละเอียด รวม · หน้า <span class="pageNumber"></span>/<span class="totalPages"></span></div>` });

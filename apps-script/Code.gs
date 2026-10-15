@@ -10,9 +10,9 @@ const SHEETS = {
   Admins:    ['id', 'username', 'salt', 'hash', 'name', 'role', 'schoolId', 'active'],
   Students:  ['id', 'schoolId', 'level', 'room', 'no', 'name', 'active'],
   Rooms:     ['code', 'schoolId', 'level', 'room', 'active'], // รหัสห้องเรียน 6 ตัว ต่อ (โรงเรียน + ระดับ + ห้อง)
-  Attempts:  ['id', 'ts', 'schoolId', 'studentId', 'level', 'mode', 'standard', 'total', 'correct', 'detail', 'score', 'maxScore']
+  Attempts:  ['id', 'ts', 'schoolId', 'studentId', 'level', 'mode', 'standard', 'total', 'correct', 'detail', 'score', 'maxScore', 'status', 'answers', 'ms'] // status: ok = ตรวจซ้ำแล้ว · pending = ดึงเฉลยไม่ได้ตอนนั้น (เก็บคำตอบไว้ใน answers รอ regrade) · ms = เวลาที่ใช้บันทึก
 };
-const WRITES = ['roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
+const WRITES = ['roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
 // ที่อยู่ไฟล์เนื้อหาของเว็บ (GitHub Pages) — ต้องแก้ถ้าย้ายโดเมน
 const CONTENT_BASE = 'https://suradat52-cell.github.io/onet-science/content/';
 
@@ -70,19 +70,34 @@ function qType(q) { return TYPES.indexOf(q.type) >= 0 ? q.type : (q.choices ? 'm
 function ss() { return SpreadsheetApp.getActiveSpreadsheet(); }
 function uid() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
 function on(r) { return String(r.active).toUpperCase() !== 'N'; }
+const CACHED_TABLES = { Schools: 1, Students: 1, Rooms: 1 }, TBL_TTL = 120; // แคช 2 นาที: enter/progress ไม่ต้องเปิดชีตทุกครั้ง (ลดคำขอที่ชนกันที่ชีต)
+let NOCACHE = false;       // true ระหว่างคำสั่งที่เขียนข้อมูล: อ่านสดจากชีตเสมอ (เลขแถวต้องตรง)
+function dropTblCache() { try { CacheService.getScriptCache().removeAll(['t_Schools', 't_Students', 't_Rooms']); } catch (e) {} }
 function tbl(name) {
+  const cache = CACHED_TABLES[name] ? CacheService.getScriptCache() : null;
+  if (cache && !NOCACHE) { const hit = cache.get('t_' + name); if (hit) return JSON.parse(hit); }
   const v = ss().getSheetByName(name).getDataRange().getValues(), h = v.shift();
-  return v.map(function (r, i) { const o = { _row: i + 2 }; h.forEach(function (k, j) { o[k] = String(r[j]); }); return o; });
+  const rows = v.map(function (r, i) { const o = { _row: i + 2 }; h.forEach(function (k, j) { o[k] = String(r[j]); }); return o; });
+  if (cache) { try { cache.put('t_' + name, JSON.stringify(rows), TBL_TTL); } catch (e) { /* เกิน 100 KB = ไม่แคช */ } }
+  return rows;
+}
+// เติมหัวคอลัมน์ใหม่ที่ขาดในชีตเดิมให้เอง (ไม่ต้องรัน setup ซ้ำเมื่อเพิ่มคอลัมน์)
+function ensureHeaders(name) {
+  const c = CacheService.getScriptCache(); if (c.get('h_' + name)) return;
+  const s = ss().getSheetByName(name), head = s.getRange(1, 1, 1, Math.max(s.getLastColumn(), 1)).getValues()[0].map(String);
+  SHEETS[name].forEach(function (k, i) { if (head.indexOf(k) < 0) s.getRange(1, i + 1).setValue(k); });
+  c.put('h_' + name, '1', 3600);
 }
 function toRow(name, o) { return SHEETS[name].map(function (k) { return o[k] === undefined || o[k] === null ? '' : String(o[k]); }); }
 function add(name, o) { addMany(name, [o]); }
 function addMany(name, list) {
   if (!list.length) return;
+  ensureHeaders(name); if (CACHED_TABLES[name]) dropTblCache();
   const s = ss().getSheetByName(name);
   s.getRange(s.getLastRow() + 1, 1, list.length, SHEETS[name].length).setNumberFormat('@')
     .setValues(list.map(function (o) { return toRow(name, o); }));
 }
-function setRow(name, o) { ss().getSheetByName(name).getRange(o._row, 1, 1, SHEETS[name].length).setValues([toRow(name, o)]); }
+function setRow(name, o) { if (CACHED_TABLES[name]) dropTblCache(); ss().getSheetByName(name).getRange(o._row, 1, 1, SHEETS[name].length).setValues([toRow(name, o)]); }
 function hash(salt, pw) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + String(pw), Utilities.Charset.UTF_8)
     .map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
@@ -156,18 +171,53 @@ function ensureRooms(schoolId, level) {
   Object.keys(cnt).forEach(function (room) { if (!have[room]) { have[room] = { code: newCode(), schoolId: schoolId, level: level, room: room, active: 'Y' }; add('Rooms', have[room]); } });
   return Object.keys(cnt).sort().map(function (room) { return { room: room, code: have[room].code, count: cnt[room] }; });
 }
+// ค้นหา attemptId โดยอ่านเฉพาะคอลัมน์ id (ไม่อ่านทั้งแท็บ) แล้วอ่านแถวที่เจอ
+function findAttempt(aid) {
+  const s = ss().getSheetByName('Attempts'), n = s.getLastRow() - 1; if (n < 1) return null;
+  const ids = s.getRange(2, 1, n, 1).getValues(); let at = -1;
+  for (let i = ids.length - 1; i >= 0; i--) if (String(ids[i][0]) === aid) { at = i; break; }
+  if (at < 0) return null;
+  const row = s.getRange(at + 2, 1, 1, SHEETS.Attempts.length).getValues()[0], o = { _row: at + 2 };
+  SHEETS.Attempts.forEach(function (k, j) { o[k] = String(row[j]); });
+  return o;
+}
+function regradePending() {
+  let done = 0, still = 0, left = 0;
+  tbl('Attempts').filter(function (t) { return t.status === 'pending'; }).forEach(function (t, i) {
+    if (i >= 40) { left++; return; }
+    try {
+      const d = JSON.parse(t.answers || '{}'), files = {}, items = [];
+      (d.keys || []).forEach(function (k) {
+        const m = /^(\d{4})\/(\d+)$/.exec(k); if (!m) return;
+        const f = files[m[1]] = files[m[1]] || loadKeys(t.level, m[1], (d.rev || {})[m[1]]), e = f[m[2]]; if (!e) return;
+        const ty = e.t, a = normAns(ty, (d.answers || {})[k]), key = normAns(ty, e.a), pts = points(t.level, ty), ok = isRight(ty, a, key) ? 1 : 0;
+        items.push({ k: k, ok: ok, earned: earnedOf(t.level, m[1], ty, a, key, pts), points: pts, s: e.s });
+      });
+      const sum = function (f) { return Math.round(items.reduce(function (n, x) { return n + x[f]; }, 0) * 100) / 100; };
+      t.total = items.length; t.correct = sum('ok'); t.score = sum('earned'); t.maxScore = sum('points'); t.status = 'ok'; t.answers = '';
+      t.detail = JSON.stringify(items.map(function (x) { return { q: t.level + '-' + x.k.replace('/', '-'), ok: x.ok, s: x.s }; }));
+      setRow('Attempts', t); done++;
+    } catch (e) { still++; }
+  });
+  return { regraded: done, stillPending: still, notTried: left };
+}
 /* ---------- entry points ---------- */
 function doGet() { return ContentService.createTextOutput(JSON.stringify({ ok: true, data: 'onet-science api' })).setMimeType(ContentService.MimeType.JSON); }
 function doPost(e) {
-  let out, lock = null;
+  let out, lock = null, p; const T0 = Date.now();
   try {
-    const p = JSON.parse((e.postData && e.postData.contents) || '{}');
+    p = JSON.parse((e.postData && e.postData.contents) || '{}');
     const fn = API[p.action];
     if (!fn) throw new Error('ไม่รู้จักคำสั่ง: ' + p.action);
-    if (WRITES.indexOf(p.action) >= 0) { lock = LockService.getScriptLock(); lock.waitLock(25000); }
+    if (WRITES.indexOf(p.action) >= 0) { lock = LockService.getScriptLock(); lock.waitLock(25000); NOCACHE = true; }
     out = { ok: true, data: fn(p) };
   } catch (err) { out = { ok: false, error: String(err.message || err) }; }
-  finally { if (lock) lock.releaseLock(); }
+  finally { NOCACHE = false; if (lock) { dropTblCache(); lock.releaseLock(); } }
+  try {
+    const ms = Date.now() - T0, act = (out && out.ok ? '' : 'ERR ') + (p ? p.action : '');
+    console.log(JSON.stringify({ act: act, ms: ms })); // เวลาที่ใช้ต่อคำสั่ง ดูได้ในหน้า "การดำเนินการ"
+    if (ms > 5000) { const c = CacheService.getScriptCache(), a = JSON.parse(c.get('slowlog') || '[]'); a.push({ t: new Date().toISOString(), act: act, ms: ms }); c.put('slowlog', JSON.stringify(a.slice(-30)), 21600); } // คำสั่งที่ช้าเกิน 5 วินาที เก็บไว้ให้ diag ดู (เฉพาะที่ทำเสร็จ)
+  } catch (e) {}
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -191,26 +241,58 @@ const API = {
   // secure: true = โหมดสอบของครู: ตอบกลับรายข้อเฉพาะถูก/ผิดและคะแนน ไม่ส่งเฉลยหรือคำตอบที่ถูก · reveal: true = ส่งเฉลยรายข้อด้วย (โหมดฝึก/เทียบผล)
   // attemptId เดิมส่งซ้ำ = ไม่บันทึกซ้ำ
   submitAttempt: function (p) {
-    const room = roomOf(p), st = studentIn(room, p.studentId), level = st.level;
-    const keys = (p.keys || []).map(String).slice(0, 150), ans = p.answers || {}, rev = p.rev || {}, files = {}, items = [];
-    keys.forEach(function (k) {
-      const m = /^(\d{4})\/(\d+)$/.exec(k); if (!m) return;
-      const f = files[m[1]] = files[m[1]] || loadKeys(level, m[1], rev[m[1]]), e = f[m[2]]; if (!e) return;
-      const t = e.t, a = normAns(t, ans[k]), key = normAns(t, e.a), pts = points(level, t), ok = isRight(t, a, key) ? 1 : 0;
-      items.push({ k: k, ok: ok, earned: earnedOf(level, m[1], t, a, key, pts), points: pts, s: e.s, answer: key, yours: a });
-    });
-    const sum = function (f) { return Math.round(items.reduce(function (n, i) { return n + i[f]; }, 0) * 100) / 100; };
-    const res = { total: items.length, correct: sum('ok'), score: sum('earned'), maxScore: sum('points') };
-    const aid = String(p.attemptId || '').replace(/[^\w-]/g, '').slice(0, 40) || uid();
-    const lock = LockService.getScriptLock(); lock.waitLock(25000);
+    const T = Date.now(), room = roomOf(p), st = studentIn(room, p.studentId), level = st.level;
+    const keys = (p.keys || []).map(String).slice(0, 150), ans = p.answers || {}, rev = p.rev || {}, files = {};
+    let items = [], pending = false, why = '';
     try {
-      const prior = tbl('Attempts').filter(function (t) { return t.id === aid; })[0];
-      if (prior) { res.total = +prior.total; res.correct = +prior.correct; res.score = +prior.score; res.maxScore = +prior.maxScore; res.dup = true; }
+      keys.forEach(function (k) {
+        const m = /^(\d{4})\/(\d+)$/.exec(k); if (!m) return;
+        const f = files[m[1]] = files[m[1]] || loadKeys(level, m[1], rev[m[1]]), e = f[m[2]]; if (!e) return;
+        const t = e.t, a = normAns(t, ans[k]), key = normAns(t, e.a), pts = points(level, t), ok = isRight(t, a, key) ? 1 : 0;
+        items.push({ k: k, ok: ok, earned: earnedOf(level, m[1], t, a, key, pts), points: pts, s: e.s, answer: key, yours: a });
+      });
+    } catch (err) { pending = true; why = String(err.message || err); items = []; } // ดึงเฉลยไม่ได้ (GitHub ช้า/ไฟล์ยังไม่ขึ้น): ไม่ทำให้คะแนนหาย
+    const sum = function (f) { return Math.round(items.reduce(function (n, i) { return n + i[f]; }, 0) * 100) / 100; };
+    const ck = p.chk || {};
+    const res = pending ? { total: keys.length, correct: +ck.correct || 0, score: +ck.score || 0, maxScore: 0, pending: true } : { total: items.length, correct: sum('ok'), score: sum('earned'), maxScore: sum('points') };
+    const aid = String(p.attemptId || '').replace(/[^\w-]/g, '').slice(0, 40) || uid();
+    const lock = LockService.getScriptLock(); lock.waitLock(25000); // ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จแล้ว)
+    try {
+      const prior = findAttempt(aid);
+      if (prior) { res.total = +prior.total; res.correct = +prior.correct; res.score = +prior.score; res.maxScore = +prior.maxScore; res.pending = prior.status === 'pending'; res.dup = true; }
       else add('Attempts', { id: aid, ts: new Date().toISOString(), schoolId: st.schoolId, studentId: st.id, level: level, mode: p.mode || '', standard: p.standard || '', total: res.total, correct: res.correct,
-        detail: JSON.stringify(items.map(function (i) { return { q: level + '-' + i.k.replace('/', '-'), ok: i.ok, s: i.s }; })), score: res.score, maxScore: res.maxScore });
+        detail: pending ? '' : JSON.stringify(items.map(function (i) { return { q: level + '-' + i.k.replace('/', '-'), ok: i.ok, s: i.s }; })), score: res.score, maxScore: res.maxScore,
+        status: pending ? 'pending' : 'ok', answers: pending ? JSON.stringify({ keys: keys, answers: ans, rev: rev, why: why.slice(0, 120) }) : '', ms: Date.now() - T });
     } finally { lock.releaseLock(); }
     if (p.reveal || p.secure) res.items = items.map(function (i) { const o = { k: i.k, ok: i.ok, earned: i.earned, points: i.points }; if (p.reveal && !p.secure) { o.answer = i.answer; o.yours = i.yours; } return o; });
     return res;
+  },
+  // ตรวจซ้ำคะแนนที่ค้างเป็น pending (ผู้ดูแลกลางเรียก หรือรัน regradePending() ในตัวแก้ไข) ครั้งละไม่เกิน 40 รายการ
+  regrade: function (p) {
+    auth(p, true); return regradePending();
+  },
+  // ตรวจความช้า (อ่านอย่างเดียว ไม่เขียนข้อมูล): จับเวลาแต่ละขั้น — เปิดชีต นับเซลล์ทุกแท็บ อ่านแต่ละแท็บ ขอล็อก แคช UrlFetch ไป GitHub
+  // เรียกได้นาทีละครั้ง (กันถูกยิงรัว) ไม่ต้องล็อกอิน เพราะถ้าระบบช้า/ค้างจะล็อกอินไม่ได้ · ผลลัพธ์มีแต่ชื่อแท็บ ขนาด และเวลา ไม่มีข้อมูลนักเรียน
+  diag: function (p) {
+    const cache = CacheService.getScriptCache();
+    if (cache.get('diag_busy')) throw new Error('diag ถูกเรียกไปเมื่อสักครู่ รอ 60 วินาทีแล้วลองใหม่');
+    cache.put('diag_busy', '1', 60);
+    const T0 = Date.now(), out = [], step = function (name, fn) { const t = Date.now(); let note = ''; try { note = fn() || ''; } catch (e) { note = 'ผิดพลาด: ' + e; } out.push({ step: name, ms: Date.now() - t, note: String(note) }); };
+    let book, sheets = [], cells = 0;
+    step('เปิดสเปรดชีต', function () { book = ss(); return book.getName(); });
+    step('รายชื่อแท็บ', function () { sheets = book.getSheets(); return sheets.length + ' แท็บ'; });
+    sheets.forEach(function (s) { step('ขนาดแท็บ ' + s.getName(), function () { const mr = s.getMaxRows(), mc = s.getMaxColumns(); cells += mr * mc; return 'แถวสูงสุด ' + mr + ' คอลัมน์สูงสุด ' + mc + ' · แถวข้อมูล ' + s.getLastRow() + ' คอลัมน์ข้อมูล ' + s.getLastColumn(); }); });
+    out.push({ step: 'เซลล์รวมทุกแท็บ (รวมที่ว่าง)', ms: 0, note: cells + ' จากเพดาน 10,000,000' });
+    sheets.forEach(function (s) {
+      if (!s.getLastRow()) return;
+      if (Date.now() - T0 > 150000) { out.push({ step: 'อ่านแท็บ ' + s.getName(), ms: 0, note: 'ข้าม (เกิน 150 วินาทีแล้ว)' }); return; }
+      step('อ่านแท็บ ' + s.getName(), function () { const v = s.getDataRange().getValues(); let ch = 0; v.forEach(function (r) { r.forEach(function (x) { ch += String(x).length; }); }); return v.length + ' แถว · ' + ch + ' ตัวอักษร'; });
+    });
+    step('ขอล็อก (tryLock 3 วินาที)', function () { const l = LockService.getScriptLock(), got = l.tryLock(3000); if (got) l.releaseLock(); return 'ได้ล็อก = ' + got; });
+    step('แคช (เขียน+อ่าน)', function () { cache.put('diag_x', 'x', 30); return 'อ่านกลับได้ = ' + (cache.get('diag_x') === 'x'); });
+    ['manifest.json', 'P6/k-2568.json'].forEach(function (f) { step('UrlFetch ' + f, function () { const r = UrlFetchApp.fetch(CONTENT_BASE + f, { muteHttpExceptions: true }); return 'HTTP ' + r.getResponseCode() + ' · ' + r.getContentText().length + ' ตัวอักษร'; }); });
+    let slow = []; try { slow = JSON.parse(cache.get('slowlog') || '[]'); } catch (e) {}
+    return { totalMs: Date.now() - T0, steps: out, slow: slow };
   },
 
   /* ----- แอดมิน ----- */

@@ -7,7 +7,7 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer-core";
-import { at, imgsOf, IMG_NAME } from "./lib.mjs";
+import { at, imgsOf, IMG_NAME, BLOCK_REAL_API } from "./lib.mjs";
 import { parseSolutions } from "./solutions.mjs";
 
 const [, , LVA, YA, ...rest] = process.argv;
@@ -128,7 +128,7 @@ fs.mkdirSync(at("tools", ".cache"), { recursive: true });
 fs.mkdirSync(at("review"), { recursive: true });
 const htmlFile = at("tools", ".cache", `review-${LVA}-${YA}.html`), out = at("review", `REVIEW-${LVA}-${YA}.pdf`);
 fs.writeFileSync(htmlFile, full);
-const b = await puppeteer.launch({ executablePath: EDGE, headless: true }), p = await b.newPage();
+const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.goto("file:///" + htmlFile.replace(/\\/g, "/"), { waitUntil: "networkidle0" });
 await p.pdf({ path: out, format: "A4", printBackground: true, displayHeaderFooter: true, margin: { top: "12mm", bottom: "14mm", left: "12mm", right: "12mm" },
   headerTemplate: "<span></span>", footerTemplate: `<div style="font-size:9px;width:100%;text-align:center;color:#666">ตรวจเฉลยละเอียด ${LVA}-${YA} · หน้า <span class="pageNumber"></span>/<span class="totalPages"></span></div>` });

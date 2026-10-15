@@ -1,9 +1,9 @@
 ﻿import puppeteer from "puppeteer-core"; import fs from "fs"; import path from "path";
-import { TOOLS } from "./lib.mjs";
+import { TOOLS, BLOCK_REAL_API } from "./lib.mjs";
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe","C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f=>fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS,".cache","admin.json"),"utf8")), BASE=`http://localhost:${cfg.port}/`;
 const [lv="M3", year="2568", qn="8", outDir="review"] = process.argv.slice(2);
-const b = await puppeteer.launch({executablePath:EDGE,headless:true}), p = await b.newPage();
+const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.setViewport({width:390,height:844,deviceScaleFactor:2,isMobile:true,hasTouch:true}); p.on("dialog",d=>d.accept());
 const click=async s=>{await p.waitForSelector(s);await p.$eval(s,e=>e.click());}, idle=()=>p.waitForNetworkIdle({idleTime:250});
 await p.goto(BASE,{waitUntil:"networkidle0"}); await p.evaluate(()=>localStorage.clear()); await p.goto(BASE,{waitUntil:"networkidle0"});

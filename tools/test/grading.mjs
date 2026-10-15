@@ -65,8 +65,36 @@ const rv = await api("submitAttempt", { ...payload, attemptId: "dup-test-2", rev
 t("reveal: true ส่งเฉลยรายข้อกลับ / ไม่ขอไม่ส่ง", Array.isArray(rv.items) && rv.items.length === keysAll.length && r1.items === undefined);
 const odd = await api("submitAttempt", { code, studentId: stu.id, attemptId: "odd-test", mode: "mock", keys: ["abc", "../x", `${y0}/999999`, keysAll[0]], answers: { [keysAll[0]]: { x: 1 } }, rev: {} });
 t("คีย์แปลก/ข้อที่ไม่มี ถูกข้าม ไม่ทำให้ล้ม", odd.total <= 1, JSON.stringify(odd));
-let noYear = ""; try { await api("submitAttempt", { code, studentId: stu.id, attemptId: "odd-year", keys: ["9999/1"], answers: {}, rev: {} }); } catch (e) { noYear = e.message; }
-t("ปีที่ไม่มีไฟล์เฉลย: แจ้งข้อผิดพลาด (ไม่บันทึกคะแนนผิด ๆ ให้ส่งใหม่ภายหลัง)", /โหลดเฉลยปี 9999 ไม่ได้/.test(noYear), noYear);
+const noYear = await api("submitAttempt", { code, studentId: stu.id, attemptId: "odd-year", keys: ["9999/1"], answers: {}, rev: {}, chk: { score: 0, correct: 0 } });
+t("ปีที่ไม่มีไฟล์เฉลย: ไม่ล้ม บันทึกเป็น pending (ไม่ให้คะแนนผิด ๆ) รอตรวจซ้ำ", noYear.pending === true, JSON.stringify(noYear));
 let rejected = false; try { await api("submitAttempt", { code: "ZZZZZZ", studentId: stu.id, keys: [], answers: {} }); } catch (e) { rejected = /รหัสห้องเรียนไม่ถูกต้อง/.test(e.message); }
 t("รหัสห้องผิด บันทึกคะแนนไม่ได้", rejected);
+
+/* ดึงเฉลยไม่ได้ → บันทึกไว้ก่อน (pending) แล้วตรวจซ้ำภายหลังได้คะแนนเท่ากับที่คำนวณแยก */
+const kk = J(`P6/k-${y0}.json`), qq = J(`P6/q-${y0}.json`); const ansP = {}; let expP = 0, rightP = 0;
+qq.forEach((q, i) => { const e = kk[q.itemNo], a = e.t === "mc" ? (i % 3 ? e.a.split("|")[0] : "1") : ""; ansP[`${y0}/${q.itemNo}`] = a; expP += expectedScore("P6", y0, e.t, a, e.a); if (isRight(e.t, a, e.a)) rightP++; });
+const pk = { code, studentId: stu.id, attemptId: "pend-1", mode: "year", standard: y0, keys: qq.map(q => `${y0}/${q.itemNo}`), answers: ansP, rev: { [y0]: "no-cache-rev" }, chk: { score: 1, correct: 1 } };
+await fetch(BASE.replace("/api", "/__fail?on=1"));
+const pr1 = await api("submitAttempt", pk);
+await fetch(BASE.replace("/api", "/__fail?on=0"));
+t("โหลดเฉลยไม่ได้: ไม่ล้ม ตอบ pending และเก็บคะแนนที่นักเรียนเห็นไว้ก่อน", pr1.pending === true && pr1.total === qq.length, JSON.stringify(pr1));
+const pr2 = await api("submitAttempt", pk);
+t("ส่ง attemptId ที่ค้าง pending ซ้ำ ไม่บันทึกซ้ำ", pr2.dup === true && pr2.pending === true, JSON.stringify(pr2));
+const rg = await api("regrade", { token });
+t("regrade: ตรวจซ้ำรายการที่ค้างได้ " + rg.regraded + " รายการ (ปี 9999 ที่ไม่มีไฟล์ยังค้างอยู่ 1)", rg.regraded === 1 && rg.stillPending === 1, JSON.stringify(rg));
+const rg2 = await api("regrade", { token });
+t("regrade ซ้ำ ไม่มีของที่ตรวจได้เพิ่ม", rg2.regraded === 0 && rg2.stillPending === 1, JSON.stringify(rg2));
+const prog = await api("progress", { code, studentId: stu.id });
+t("หลัง regrade ความคืบหน้านับข้อถูกตามเฉลยจริง", Object.values(prog.done).reduce((n, d) => n + d.done, 0) >= qq.length, JSON.stringify(prog.history[0]));
+const h0 = prog.history.find(h => h.standard === y0 && +h.total === qq.length && Math.abs(+h.score - Math.round(expP * 100) / 100) < 0.011);
+t("คะแนนที่ตรวจซ้ำตรงกับที่คำนวณแยก (" + Math.round(expP * 100) / 100 + ")", !!h0, JSON.stringify(prog.history.slice(0, 2)));
+
+/* แคชรายชื่อ: เพิ่มนักเรียนแล้ว enter เห็นทันที (ไม่รอแคชหมดอายุ) */
+const e0 = (await api("enter", { code })).students.length;
+await api("enter", { code }); // อุ่นแคช
+await api("addStudents", { token, schoolId: cfg.schoolId, level: "P6", text: "6/1,9,นักเรียนแคชทดสอบ" });
+const e1 = (await api("enter", { code })).students;
+t("เพิ่มนักเรียนแล้ว enter เห็นทันที (ล้างแคชหลังเขียน)", e1.length === e0 + 1 && e1.some(s => s.name === "นักเรียนแคชทดสอบ"), e1.length + "/" + e0);
+await api("removeStudent", { token, id: e1.find(s => s.name === "นักเรียนแคชทดสอบ").id });
+t("ลบนักเรียนแล้ว enter ไม่เห็นทันที", (await api("enter", { code })).students.length === e0);
 process.exit(bad ? 1 : 0);

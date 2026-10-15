@@ -4,7 +4,7 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer-core";
-import { at, TOOLS } from "./lib.mjs";
+import { at, TOOLS, BLOCK_REAL_API } from "./lib.mjs";
 
 const names = process.argv.slice(2);
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
@@ -33,7 +33,7 @@ for (const name of names) {
   if (notOk.length) md.push("## ข้อที่ยังไม่ครอบคลุม", "", ...notOk.map(r => `- ${r[0]} ข้อ ${r[1]} (${r[2]}): ${r[3]} — ${r[5]}`), "");
   fs.writeFileSync(at("data", "summaries", `COVERAGE-${name}.md`), md.join("\n"), "utf8");
   const html = `<!doctype html><meta charset="utf-8"><style>body{font:13px Sarabun,Tahoma,sans-serif;margin:0}h1{font-size:17px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px 6px;vertical-align:top}th{background:#eee}tr{break-inside:avoid}.ok{color:#15803d;font-weight:700}.no{color:#b91c1c;font-weight:700}</style><h1>ตารางตรวจความครอบคลุม ${lv === "P6" ? "ป.6" : "ม.3"} ${esc(std)}</h1><p>ข้อสอบจริงในคลัง ${rows.length} ข้อ · ครอบคลุม ${ok} ข้อ · ยังไม่ครอบคลุม ${notOk.length} ข้อ</p><table><tr>${["ปี", "ข้อ", "ตัวชี้วัด", "ความรู้/ทักษะที่ข้อสอบต้องใช้", "หัวข้อในสรุป", "ผล"].map(h => `<th>${h}</th>`).join("")}</tr>${rows.map(r => `<tr>${r.map((c, i) => `<td${i === 5 ? ` class="${c === "ครอบคลุม" ? "ok" : "no"}"` : ""}>${esc(c)}</td>`).join("")}</tr>`).join("")}</table>`;
-  const b = await puppeteer.launch({ executablePath: EDGE, headless: true }), p = await b.newPage();
+  const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
   await p.setContent(html); fs.mkdirSync(path.join(TOOLS, ".cache", "summary"), { recursive: true });
   const out = path.join(TOOLS, ".cache", "summary", `COVERAGE-${name}.pdf`);
   await p.pdf({ path: out, format: "A4", landscape: true, margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" }, printBackground: true }); await b.close();

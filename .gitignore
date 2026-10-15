@@ -26,3 +26,8 @@ design/
 
 # ไฟล์เนื้อหา JSON สร้างจาก data/ ด้วย tools/build-content.mjs (publish.mjs สร้างและส่งขึ้นเว็บให้เอง)
 content/
+
+# clasp (����� Apps Script) � ������� GitHub
+.clasp.json
+.clasprc.json
+.clasp-pull/

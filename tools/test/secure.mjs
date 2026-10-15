@@ -23,13 +23,13 @@ page.on("dialog", d => d.accept());
 await page.goto(BASE, { waitUntil: "networkidle0" }); await page.evaluate(() => localStorage.clear()); await page.goto(BASE, { waitUntil: "networkidle0" });
 await page.type("#cc", cfg.rooms.P6); await page.$eval("#cf button", b => b.click());
 await page.waitForSelector('button[data-a="pick"]'); await page.$eval('button[data-a="pick"]', b => b.click());
-await page.waitForSelector('button[data-a="year"]');
-const year = await page.$eval('button[data-a="year"]', b => b.dataset.y);
+await page.waitForSelector(".scard");
+const year = await page.evaluate(async () => (await cj(S.level + "/meta.json")).years[0]);
 const mark = reqs.length;
 await page.evaluate(y => quiz("year", y, undefined, 0, true), year);
-await page.waitForSelector("#f");
-await page.evaluate(() => document.querySelectorAll("#f .q").forEach(q => { const r = q.querySelector('input[type=radio][value="1"]'); if (r) r.click(); }));
-await page.$eval("#f button:not([type])", b => b.click());
+await page.waitForSelector("#qcard");
+await page.evaluate(() => { Q.qs.forEach(q => { if (q.type === "mc") Q.ans[q.id] = "1"; }); }); // ตอบข้อ 1 ทุกข้อปรนัย (ผ่าน state เดียวกับที่ช่องตอบเขียน)
+await page.$eval('[data-a="sheet"]', b => b.click()); await page.$eval('#sheet [data-a="submit"]', b => b.click());
 await page.waitForFunction(() => /ได้ .*%/.test(document.querySelector("h2")?.textContent || ""), { timeout: 30000 });
 const text = await page.$eval("main", m => m.innerText), h2 = await page.$eval("h2", h => h.textContent);
 await browser.close();

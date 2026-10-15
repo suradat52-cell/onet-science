@@ -46,8 +46,8 @@ const ctx = vm.createContext({
     DigestAlgorithm: { SHA_256: "sha256" }, Charset: { UTF_8: "utf8" },
     computeDigest: (alg, s) => [...crypto.createHash("sha256").update(s, "utf8").digest()].map(b => (b > 127 ? b - 256 : b)),
   },
-  UrlFetchApp: { fetch: url => { fetchLog.push(url); const m = /\/content\/([^?]+)/.exec(url), f = m && path.join(ROOT, "content", m[1]); const ok = f && fs.existsSync(f); return { getResponseCode: () => (ok ? 200 : 404), getContentText: () => (ok ? fs.readFileSync(f, "utf8") : "") }; } },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
+  UrlFetchApp: { fetch: url => { fetchLog.push(url); if (globalThis.__FETCH_FAIL) throw new Error('Exception: Address unavailable (จำลอง)'); const m = /\/content\/([^?]+)/.exec(url), f = m && path.join(ROOT, "content", m[1]); const ok = f && fs.existsSync(f); return { getResponseCode: () => (ok ? 200 : 404), getContentText: () => (ok ? fs.readFileSync(f, "utf8") : "") }; } },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; }, removeAll: ks => ks.forEach(k => delete cache[k]) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
   Logger: { log: m => logs.push(String(m)) },
@@ -73,6 +73,7 @@ fs.writeFileSync(path.join(TOOLS, ".cache", "admin.json"), JSON.stringify({ user
 /* ---------- http ---------- */
 const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".json": "application/json", ".css": "text/css" };
 http.createServer((req, res) => {
+  if (req.url.startsWith("/__fail")) { globalThis.__FETCH_FAIL = /on=1/.test(req.url); res.writeHead(200); return res.end("fetchfail=" + globalThis.__FETCH_FAIL); } // ทดสอบ: ให้ UrlFetch (โหลดเฉลย) ล้มเหลว
   if (req.method === "POST" && req.url === "/api") {
     let b = ""; req.on("data", d => (b += d));
     req.on("end", () => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(ctx.doPost({ postData: { contents: b } }).s); });
@@ -80,9 +81,9 @@ http.createServer((req, res) => {
   }
   const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "") || "index.html";
   const file = path.join(ROOT, rel);
-  if (!file.startsWith(ROOT) || !/^(index\.html|grade\.js|images\/|figs\/|content\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
+  if (!file.startsWith(ROOT) || !/^(index\.html|grade\.js|app\.css|js\/|images\/|figs\/|content\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
   let body = fs.readFileSync(file);
-  if (rel === "index.html") body = body.toString("utf8").replace(/const API_URL = '[^']*';/, "const API_URL = '/api';");
+  if (rel === "index.html") { body = body.toString("utf8").replace(/const API_URL = '[^']*';/, "const API_URL = '/api';"); if (/script\.google\.com/.test(body)) { res.writeHead(500); return res.end("ปฏิเสธ: index.html ยังมี URL Apps Script จริง (กันชุดทดสอบยิงระบบจริง)"); } }
   res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
   res.end(body);
 }).listen(PORT, () => console.log(`เปิด http://localhost:${PORT} (ผู้ใช้ admin รหัสผ่านอยู่ใน tools/.cache/admin.json)`));
