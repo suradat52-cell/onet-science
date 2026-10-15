@@ -1,6 +1,7 @@
 ﻿// รัน apps-script/Code.gs จริงใน Node กับ Google Sheets จำลอง (in-memory) แล้วเสิร์ฟ index.html + images/
 // node tools/test/server.mjs [port=8765]
-// ตอนเริ่ม: setup() → login admin → นำเข้า data/blueprint.tsv และ data/questions-*.tsv → สร้างโรงเรียนและนักเรียนทดสอบ
+// ตอนเริ่ม: สร้าง content/ จาก data/ (tools/build-content.mjs) → setup() → สร้างโรงเรียนและนักเรียนทดสอบ · เนื้อหาเสิร์ฟจาก /content/ เหมือน GitHub Pages
+// Apps Script จำลองรัน Code.gs จริง: UrlFetchApp.fetch ของกุญแจเฉลย อ่านจาก content/ ในเครื่อง
 // API_URL ของหน้าเว็บถูกแทนเป็น /api ตอนเสิร์ฟเท่านั้น (ไม่แก้ไฟล์จริง)
 import fs from "fs";
 import http from "http";
@@ -8,6 +9,10 @@ import path from "path";
 import vm from "vm";
 import crypto from "crypto";
 import { ROOT, at, TOOLS } from "../lib.mjs";
+import { buildContent } from "../build-content.mjs";
+
+const built = buildContent(); // เนื้อหาใหม่จาก data/ ทุกครั้งที่เริ่มเซิร์ฟเวอร์ทดสอบ
+const fetchLog = [];
 
 const PORT = +(process.argv[2] || 8765);
 const logs = [];
@@ -41,6 +46,7 @@ const ctx = vm.createContext({
     DigestAlgorithm: { SHA_256: "sha256" }, Charset: { UTF_8: "utf8" },
     computeDigest: (alg, s) => [...crypto.createHash("sha256").update(s, "utf8").digest()].map(b => (b > 127 ? b - 256 : b)),
   },
+  UrlFetchApp: { fetch: url => { fetchLog.push(url); const m = /\/content\/([^?]+)/.exec(url), f = m && path.join(ROOT, "content", m[1]); const ok = f && fs.existsSync(f); return { getResponseCode: () => (ok ? 200 : 404), getContentText: () => (ok ? fs.readFileSync(f, "utf8") : "") }; } },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { MimeType: { JSON: "json" }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
@@ -55,14 +61,7 @@ const must = r => { if (!r.ok) throw new Error(r.error); return r.data; };
 ctx.setup();
 const password = logs.join("\n").match(/รหัสผ่าน: (\w+)/)[1];
 const token = must(call({ action: "login", username: "admin", password })).token;
-const read = f => fs.readFileSync(at("data", f), "utf8");
-console.log("blueprint", must(call({ action: "importBlueprint", token, text: read("blueprint.tsv") })));
-for (const f of fs.readdirSync(at("data")).filter(f => /^questions-.*\.tsv$/.test(f)).sort())
-  console.log(f, must(call({ action: "importQuestions", token, text: read(f) })));
-const SUM = at("data", "summaries");
-if (fs.existsSync(SUM)) for (const f of fs.readdirSync(SUM).filter(f => /^(P6|M3)-.*\.txt$/.test(f)).sort()) console.log("summaries", f, must(call({ action: "importSummaries", token, text: fs.readFileSync(path.join(SUM, f), "utf8") })));
-const SOL = at("data", "solutions");
-if (fs.existsSync(SOL)) for (const f of fs.readdirSync(SOL).filter(f => /^(P6|M3)-\d{4}\.txt$/.test(f)).sort()) console.log("solutions", f, must(call({ action: "importSolutions", token, text: fs.readFileSync(path.join(SOL, f), "utf8") })));
+export { built, fetchLog };
 const sid = must(call({ action: "saveSchool", token, name: "โรงเรียนทดสอบ" })).id;
 must(call({ action: "addStudents", token, schoolId: sid, level: "P6", text: "6/1,1,เด็กหญิงทดสอบ ป.หก" }));
 must(call({ action: "addStudents", token, schoolId: sid, level: "M3", text: "3/1,1,เด็กชายทดสอบ ม.สาม" }));
@@ -72,7 +71,7 @@ for (const lv of ["P6", "M3"]) rooms[lv] = must(call({ action: "roomCodes", toke
 fs.writeFileSync(path.join(TOOLS, ".cache", "admin.json"), JSON.stringify({ username: "admin", password, port: PORT, schoolId: sid, rooms }));
 
 /* ---------- http ---------- */
-const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".css": "text/css" };
+const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".json": "application/json", ".css": "text/css" };
 http.createServer((req, res) => {
   if (req.method === "POST" && req.url === "/api") {
     let b = ""; req.on("data", d => (b += d));
@@ -81,7 +80,7 @@ http.createServer((req, res) => {
   }
   const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "") || "index.html";
   const file = path.join(ROOT, rel);
-  if (!file.startsWith(ROOT) || !/^(index\.html|images\/|figs\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
+  if (!file.startsWith(ROOT) || !/^(index\.html|grade\.js|images\/|figs\/|content\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
   let body = fs.readFileSync(file);
   if (rel === "index.html") body = body.toString("utf8").replace(/const API_URL = '[^']*';/, "const API_URL = '/api';");
   res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });

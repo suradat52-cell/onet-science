@@ -122,6 +122,7 @@ figcaption{font-size:.88rem;color:var(--mute)}
 <header><h1>ติว O-NET วิทยาศาสตร์<span id="lvb"></span></h1><small>ป.6 และ ม.3 · ข้อสอบจริงจาก สทศ. แยกตามมาตรฐานและตัวชี้วัด</small></header>
 <main id="app"></main>
 <div id="msg"></div>
+<script src="grade.js"></script>
 <script>
 /* ====== ตั้งค่า: วาง URL ของ Apps Script Web app (ลงท้ายด้วย /exec) ====== */
 const API_URL = 'https://script.google.com/macros/s/AKfycbx6hs29CHXPQGAgLKR8goORieF0l8cSI_9WXuOsblbhCmi5SEejDTF8lvf1ESR-aNxS/exec';
@@ -158,7 +159,54 @@ async function api(action, data) {
   if (!j.ok) throw new Error(j.error);
   return j.data;
 }
-async function run(fn) { try { await fn(); theme(); } catch (e) { toast(e.message); if (/เข้าสู่ระบบใหม่/.test(e.message)) { S.token = null; save(); admin(); } else if (/รหัสห้องเรียนไม่ถูกต้อง/.test(e.message) && S.code) { S.code = S.student = null; save(); home(); } } }
+let VIEW = 0; // เพิ่มทุกครั้งที่ผู้ใช้กดปุ่ม: งานเบื้องหลังที่เสร็จช้ากว่านั้นจะไม่วาดทับหน้าใหม่
+async function run(fn) { VIEW++; try { await fn(); theme(); } catch (e) { toast(e.message); if (/เข้าสู่ระบบใหม่/.test(e.message)) { S.token = null; save(); admin(); } else if (/รหัสห้องเรียนไม่ถูกต้อง/.test(e.message) && S.code) { S.code = S.student = null; save(); home(); } } }
+/* ---------- เนื้อหา: โหลดจากไฟล์ JSON บน GitHub Pages (โฟลเดอร์ content/) ไม่ผ่าน Apps Script ---------- */
+let MFP = null, MFV = null; const CJ = {};
+const manifest = () => MFP || (MFP = fetch('content/manifest.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('โหลดเนื้อหาไม่ได้ (HTTP ' + r.status + ')'); return r.json(); }).then(j => (MFV = j)).catch(e => { MFP = null; throw e; }));
+async function cj(rel, optional) {
+  const m = await manifest(), v = m.files[rel];
+  if (v === undefined) { if (optional) return null; throw new Error('ไม่พบไฟล์เนื้อหา ' + rel); }
+  const k = rel + '@' + v;
+  return CJ[k] || (CJ[k] = fetch('content/' + rel + '?v=' + v).then(r => { if (!r.ok) throw new Error('โหลดเนื้อหาไม่ได้ ' + rel + ' (HTTP ' + r.status + ')'); return r.json(); }).catch(e => { delete CJ[k]; throw e; }));
+}
+const revOf = rel => (MFV && MFV.files[rel]) || '';
+manifest().catch(() => {}); // เริ่มโหลดรายการไฟล์ตั้งแต่เปิดหน้า
+const yearsOf = qs => [...new Set(qs.map(q => q.examYear))];
+async function questionsFor(keys) {
+  const files = await Promise.all(yearsOf(keys.map(k => ({ examYear: k.split('/')[0] }))).map(y => cj(S.level + '/q-' + y + '.json')));
+  const idx = {}; files.forEach(arr => arr.forEach(q => { idx[q.examYear + '/' + q.itemNo] = q; }));
+  return keys.map(k => idx[k]).filter(Boolean);
+}
+
+/* ---------- บันทึกคะแนนเบื้องหลัง: เก็บในเครื่องก่อน ส่งซ้ำอัตโนมัติถ้าเน็ตหลุด · attemptId เดิมส่งซ้ำไม่บันทึกซ้ำ ---------- */
+const uuid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+const PEND = 'onet_pending', pend = () => store.get(PEND) || [];
+let flushing = false, flushTimer = 0;
+function saveState(att, txt, cls) { const el = document.getElementById('savestat'); if (el && el.dataset.id === att.attemptId) { el.textContent = txt; el.className = 'mute ' + (cls || ''); } }
+async function flushQ() {
+  if (flushing) return; flushing = true; clearTimeout(flushTimer);
+  try {
+    for (;;) {
+      const att = pend()[0]; if (!att) break;
+      const drop = () => store.set(PEND, pend().filter(x => x.attemptId !== att.attemptId));
+      try {
+        const r = await api('submitAttempt', att); drop();
+        const ch = att.chk, diff = ch && (+r.score !== +ch.score || +r.correct !== +ch.correct);
+        saveState(att, diff ? 'บันทึกแล้ว · ระบบตรวจซ้ำได้ ' + r.correct + ' ข้อ ' + r.score + ' คะแนน (ใช้ค่านี้บันทึก)' : 'บันทึกคะแนนแล้ว ✓', diff ? 'bad' : 'ok');
+      } catch (e) {
+        if (/ไม่ถูกต้อง|ไม่พบนักเรียน|ไม่รู้จักคำสั่ง/.test(e.message)) { drop(); saveState(att, 'บันทึกคะแนนไม่ได้: ' + e.message, 'bad'); continue; }
+        att.tries = (att.tries || 0) + 1;
+        if (att.tries > 40) { drop(); continue; }
+        store.set(PEND, pend().map(x => (x.attemptId === att.attemptId ? att : x)));
+        saveState(att, 'ยังบันทึกคะแนนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ', 'bad');
+        flushTimer = setTimeout(flushQ, Math.min(60000, 4000 * att.tries)); break;
+      }
+    }
+  } finally { flushing = false; }
+}
+window.addEventListener('online', flushQ);
+const enqueue = att => { store.set(PEND, pend().concat([att])); flushQ(); };
 const loading = t => app.innerHTML = '<div class="card mute">' + esc(t || 'กำลังโหลด…') + '</div>';
 const nav = () => '<p class="row"><button class="link" data-a="home">หน้าแรก</button><button class="link" data-a="res">ผังข้อสอบและข้อสอบจาก สทศ.</button><button class="link" data-a="admin">สำหรับครู/แอดมิน</button></p>';
 
@@ -220,15 +268,17 @@ function codeForm() {
     '<form id="cf"><div class="row"><input id="cc" name="code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="เช่น K7M2XQ" style="text-transform:uppercase;letter-spacing:.2em;font-size:1.4em;max-width:12em" required><button>เข้าห้อง</button></div></form></div>' + nav();
   $('#cf').onsubmit = e => { e.preventDefault(); run(async () => {
     const code = $('#cc').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const r = await api('joinRoom', { code });
-    S.code = code; S.school = r.school; S.room = r.room; S.level = r.level; S.student = null; save(); await home();
+    const r = await api('enter', { code });
+    S.code = code; S.school = r.school; S.room = r.room; S.level = r.level; S.student = null; ROSTER = r.students; save(); await home();
   }); };
 }
+let ROSTER = null; // รายชื่อห้อง (ได้มากับ enter) เก็บไว้ในหน้านี้ ไม่ต้องถามซ้ำ
 async function home() {
   if (!API_URL) { app.innerHTML = '<div class="card note">ยังไม่ได้เชื่อมต่อฐานข้อมูล: ใส่ URL ของ Apps Script ในตัวแปร <b>API_URL</b> ที่ไฟล์ index.html (ดู README)</div>' + nav(); return; }
   if (!S.code) { S.level = S.level || 'P6'; return codeForm(); }
-  loading();
-  const list = await api('listStudents', { code: S.code });
+  if (!ROSTER) { loading(); const r = await api('enter', { code: S.code }); S.school = r.school; S.level = r.level; S.room = r.room; ROSTER = r.students; save(); }
+  const list = ROSTER;
+  cj(S.level + '/meta.json').catch(() => {}); // เตรียมผังข้อสอบของระดับนี้ไว้ล่วงหน้า
   app.innerHTML = '<div class="card"><h2>เลือกชื่อของนักเรียน</h2><p class="mute">' + esc(S.school || '') + ' · ' + LV[S.level] + ' · ห้อง ' + esc(S.room || '') + '</p>' +
     (list.length ? '<div class="grid">' + list.map(s => '<button data-a="pick" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '">' + esc(s.no) + '. ' + esc(s.name) + '</button>').join('') + '</div>' : '<p class="mute">ห้องนี้ยังไม่มีรายชื่อนักเรียน ให้ครูเพิ่มในเมนูแอดมิน</p>') +
     '<p><button class="ghost" data-a="room">เปลี่ยนห้อง (ใส่รหัสใหม่)</button></p></div>' + nav();
@@ -237,24 +287,36 @@ async function home() {
 /* ---------- แดชบอร์ดนักเรียน: สรุปตาม Blueprint ---------- */
 async function dash() {
   loading();
-  const o = await api('overview', { code: S.code, studentId: S.student.id });
-  const years = Object.keys(o.bankYears).sort().reverse();
-  const bank = o.standards.reduce((n, x) => n + x.bank, 0);
-  app.innerHTML = '<div class="card"><h2>' + esc(S.student.name) + ' <span class="tag">' + LV[S.level] + '</span></h2>' +
-    '<p class="mute">คลังข้อสอบจริง ' + bank + ' ข้อ' + (years.length ? ' จากปีการศึกษา ' + years.map(esc).join(', ') : '') + '</p>' +
-    '<div class="row"><button data-a="mock"' + (bank ? '' : ' disabled') + '>ทำข้อสอบจำลองตาม Test Blueprint</button><button class="ghost" data-a="home">เปลี่ยนผู้ใช้</button></div></div>' +
-    (years.length ? '<div class="card"><h2>ข้อสอบจริงแยกรายปี</h2><div class="row">' + years.map(y => '<button class="ghost" data-a="year" data-y="' + esc(y) + '">ปีการศึกษา ' + esc(y) + ' (' + o.bankYears[y] + ' ข้อ)</button>').join('') + '</div></div>' : '') +
-    '<div class="card"><h2>สรุปตาม Test Blueprint' + (o.year ? ' ปีการศึกษา ' + esc(o.year) : '') + '</h2><div class="scroll"><table><tr><th>มาตรฐาน / ตัวชี้วัด</th><th class="n">ข้อในผัง</th><th class="n">ในคลัง</th><th class="n">ทำถูก</th><th></th></tr>' +
-    o.standards.map(x => '<tr><td><b>' + esc(x.standard) + '</b> <span class="mute">' + esc(x.strand) + '</span>' + (x.description ? '<br><span class="mute">' + esc(x.description) + '</span>' : '') + '</td><td class="n">' + (x.items || '–') + '</td><td class="n">' + x.bank + '</td><td class="n">' + pct(x.correct, x.done) + (x.done ? ' <span class="mute">(' + x.correct + '/' + x.done + ')</span>' : '') + '</td><td>' + '<button class="ghost" data-a="study" data-std="' + esc(x.standard) + '">สรุป + ฝึก</button>' + '</td></tr>' +
-      x.ind.map(i => '<tr><td style="padding-left:22px">' + esc(i.indicator) + (i.offPlan ? ' <span class="tag off">ไม่อยู่ในผัง ' + esc(i.offPlan) + '</span>' : '') + ' <span class="mute">' + esc(i.description) + '</span></td><td class="n">' + (i.items || '–') + '</td><td class="n">' + i.bank + '</td><td></td><td>' + '<button class="link" data-a="study" data-std="' + esc(x.standard) + '" data-ind="' + esc(i.indicator) + '">สรุป + ฝึก</button>' + '</td></tr>').join('')).join('') +
-    '</table></div><p class="mute">"ข้อในผัง" คือจำนวนข้อที่ สทศ. กำหนดใน Test Blueprint ถ้าขึ้น – แสดงว่าครูยังไม่ได้กรอกจากไฟล์ผังข้อสอบ</p></div>' +
-    (o.history.length ? '<div class="card"><h2>ประวัติล่าสุด</h2><table>' + o.history.map(h => '<tr><td>' + esc(new Date(h.ts).toLocaleString('th-TH')) + '</td><td>' + (h.mode === 'mock' ? 'ข้อสอบจำลอง' : h.mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(h.standard) : 'ฝึก ' + esc(h.standard)) + '</td><td class="n">' + (h.maxScore && h.mode !== 'year' ? esc(h.score) + '/' + esc(h.maxScore) + ' คะแนน' : h.maxScore ? pct(h.score, h.maxScore) + ' · ' + esc(h.correct) + '/' + esc(h.total) + ' ข้อ' : esc(h.correct) + '/' + esc(h.total) + ' ข้อ') + '</td></tr>').join('') + '</table></div>' : '') + nav();
+  const my = VIEW, lv = S.level, m = await cj(lv + '/meta.json');
+  const years = Object.keys(m.bankYears).sort().reverse();
+  const bank = m.standards.reduce((n, x) => n + x.bank, 0);
+  const paint = pr => {
+    const dn = x => (pr && pr.done[x.standard]) || { done: 0, correct: 0 };
+    app.innerHTML = '<div class="card"><h2>' + esc(S.student.name) + ' <span class="tag">' + LV[S.level] + '</span></h2>' +
+      '<p class="mute">คลังข้อสอบจริง ' + bank + ' ข้อ' + (years.length ? ' จากปีการศึกษา ' + years.map(esc).join(', ') : '') + '</p>' +
+      '<div class="row"><button data-a="mock"' + (bank ? '' : ' disabled') + '>ทำข้อสอบจำลองตาม Test Blueprint</button><button class="ghost" data-a="home">เปลี่ยนผู้ใช้</button></div></div>' +
+      (years.length ? '<div class="card"><h2>ข้อสอบจริงแยกรายปี</h2><div class="row">' + years.map(y => '<button class="ghost" data-a="year" data-y="' + esc(y) + '">ปีการศึกษา ' + esc(y) + ' (' + m.bankYears[y] + ' ข้อ)</button>').join('') + '</div></div>' : '') +
+      '<div class="card"><h2>สรุปตาม Test Blueprint' + (m.year ? ' ปีการศึกษา ' + esc(m.year) : '') + '</h2><div class="scroll"><table><tr><th>มาตรฐาน / ตัวชี้วัด</th><th class="n">ข้อในผัง</th><th class="n">ในคลัง</th><th class="n">ทำถูก</th><th></th></tr>' +
+      m.standards.map(x => { const d = dn(x); return '<tr><td><b>' + esc(x.standard) + '</b> <span class="mute">' + esc(x.strand) + '</span>' + (x.description ? '<br><span class="mute">' + esc(x.description) + '</span>' : '') + '</td><td class="n">' + (x.items || '–') + '</td><td class="n">' + x.bank + '</td><td class="n">' + pct(d.correct, d.done) + (d.done ? ' <span class="mute">(' + d.correct + '/' + d.done + ')</span>' : '') + '</td><td>' + '<button class="ghost" data-a="study" data-std="' + esc(x.standard) + '">สรุป + ฝึก</button>' + '</td></tr>' +
+        x.ind.map(i => '<tr><td style="padding-left:22px">' + esc(i.indicator) + (i.offPlan ? ' <span class="tag off">ไม่อยู่ในผัง ' + esc(i.offPlan) + '</span>' : '') + ' <span class="mute">' + esc(i.description) + '</span></td><td class="n">' + (i.items || '–') + '</td><td class="n">' + i.bank + '</td><td></td><td>' + '<button class="link" data-a="study" data-std="' + esc(x.standard) + '" data-ind="' + esc(i.indicator) + '">สรุป + ฝึก</button>' + '</td></tr>').join(''); }).join('') +
+      '</table></div><p class="mute">"ข้อในผัง" คือจำนวนข้อที่ สทศ. กำหนดใน Test Blueprint ถ้าขึ้น – แสดงว่าครูยังไม่ได้กรอกจากไฟล์ผังข้อสอบ</p></div>' +
+      (pr && pr.history.length ? '<div class="card"><h2>ประวัติล่าสุด</h2><table>' + pr.history.map(h => '<tr><td>' + esc(new Date(h.ts).toLocaleString('th-TH')) + '</td><td>' + (h.mode === 'mock' ? 'ข้อสอบจำลอง' : h.mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(h.standard) : 'ฝึก ' + esc(h.standard)) + '</td><td class="n">' + (h.maxScore && h.mode !== 'year' ? esc(h.score) + '/' + esc(h.maxScore) + ' คะแนน' : h.maxScore ? pct(h.score, h.maxScore) + ' · ' + esc(h.correct) + '/' + esc(h.total) + ' ข้อ' : esc(h.correct) + '/' + esc(h.total) + ' ข้อ') + '</td></tr>').join('') + '</table></div>' : '') + nav();
+  };
+  paint(null);
+  api('progress', { code: S.code, studentId: S.student.id }).then(pr => { if (VIEW === my) paint(pr); }).catch(() => {});
 }
 
 /* ---------- สรุปเนื้อหาก่อนฝึก ---------- */
 async function study(std, ind, hl) {
   loading();
-  const r = await api('summary', { level: S.level, standard: std, indicator: ind });
+  const m = await cj(S.level + '/meta.json'), sf = await cj(S.level + '/sum-' + std.replace(/^ว\s*/, '').trim() + '.json', true);
+  const si = m.standards.find(x => x.standard === std), offOf = k => ((si && si.ind.find(i => i.indicator === k)) || {}).offPlan || '';
+  let bank = 0;
+  const asked = Object.keys((m.asked || {})[std] || {}).filter(k => !ind || k === ind).sort().map(k => {
+    const ys = m.asked[std][k]; Object.keys(ys).forEach(y => { bank += ys[y]; });
+    return { indicator: k, offPlan: offOf(k), years: Object.keys(ys).sort().reverse().map(y => ({ y, n: ys[y] })) };
+  });
+  const r = { notes: (sf || []).filter(x => x.content && (!ind ? true : (x.indicator ? x.indicator === ind : false))), bank, asked };
   await loadFigs(S.level);
   app.innerHTML = '<div class="card"><h2>สรุปเนื้อหา ' + esc(std) + (ind ? ' · ' + esc(ind) : '') + ' <span class="tag">' + LV[S.level] + '</span></h2>' +
     (r.notes.length ? r.notes.map(n => (n.indicator ? '' : '<div class="sheet1">') + '<h3>' + (n.indicator ? '<span class="tag">' + esc(n.indicator) + '</span>' : '') + esc(n.title) + '</h3><div class="rich">' + rich(n.content) + '</div>' + (n.indicator ? '' : '</div>')).join('') : '<p class="mute">ยังไม่มีสรุปของหัวข้อนี้ ครูเพิ่มได้ที่ชีต Summaries</p>') +
@@ -272,7 +334,7 @@ const plain = s => String(s == null ? '' : s).replace(/__/g, '');
 // ลิงก์รูป: https://… ใช้ตามนั้น · ชื่อไฟล์ (เช่น P6-2568-07.png) แสดงจากโฟลเดอร์ images/ ของเว็บ
 const imgSrc = u => { u = String(u || '').trim(); return /^https:\/\//.test(u) ? u : /^[\w.-]+\.(png|jpe?g|gif|webp|svg)$/i.test(u) ? 'images/' + u : ''; };
 // ข้อความย่อยที่เป็นชื่อไฟล์ภาพล้วน (เช่น M3-2567-34-1.png) แสดงเป็นภาพที่แคปจากต้นฉบับ
-const cell = c => /^[\w.-]+\.(png|jpe?g|gif|webp)$/i.test(String(c).trim()) ? '<img class="subimg" src="' + esc(imgSrc(c)) + '" alt="ข้อย่อย">' : fmt(c);
+const cell = c => /^[\w.-]+\.(png|jpe?g|gif|webp)$/i.test(String(c).trim()) ? '<img class="subimg" src="' + esc(imgSrc(c)) + '" alt="ข้อย่อย" loading="lazy" decoding="async">' : fmt(c);
 const sub = (q, i, k) => (q.itemNo || i + 1) + '.' + (k + 1);
 const parts = v => String(v || '').split(',');
 const nYN = ['ใช่', 'ไม่ใช่'];
@@ -280,7 +342,7 @@ function qHead(q, i) {
   const src = imgSrc(q.imageUrl);
   return '<div><span class="tag y">O-NET ปีการศึกษา ' + esc(q.examYear) + (q.itemNo ? ' ข้อ ' + esc(q.itemNo) : '') + '</span><span class="tag">' + esc(q.standard) + (q.indicator ? ' · ' + esc(q.indicator) : '') + '</span>' +
     (q.offPlan ? '<span class="tag off">ไม่อยู่ในผัง ' + esc(q.offPlan) + '</span>' : '') + (q.outCurr ? '<span class="tag out">นอกหลักสูตรปัจจุบัน</span>' : '') + '</div><div class="stem"><b>' + (i + 1) + '.</b> ' + fmt(q.stem) + '</div>' +
-    (src ? '<img src="' + esc(src) + '" alt="ภาพประกอบข้อ ' + (i + 1) + '">' : '');
+    (src ? '<img src="' + esc(src) + '" alt="ภาพประกอบข้อ ' + (i + 1) + '"' + (i > 1 ? ' loading="lazy" decoding="async"' : '') + '>' : '');
 }
 function qInput(q, i) {
   const n = esc(q.id), yn = (name, v) => '<label class="yn"><input type="radio" name="' + name + '" value="' + v + '"><span>' + v + '</span></label>';
@@ -298,16 +360,19 @@ function answerOf(fd, q) {
   return String(fd.get(q.id) || '').trim();
 }
 const answered = (q, v) => q.type === 'complex' || q.type === 'order' ? parts(v).every(Boolean) : !!v;
-async function quiz(mode, std, ind, skip) {
+async function quiz(mode, std, ind, skip, secure) {
   loading('กำลังเตรียมข้อสอบ…');
-  const qs = await api('getQuiz', { level: S.level, mode, standard: std, year: std, indicator: ind, skip: skip || 0 });
+  const lv = S.level, m = await cj(lv + '/meta.json');
+  const qs = mode === 'year' ? (await cj(lv + '/q-' + std + '.json')).slice()
+    : await questionsFor(mode === 'mock' ? m.mock : (m.pool[ind ? std + '|' + ind : std] || []).slice(skip || 0, (skip || 0) + 20));
   if (!qs.length) { toast(skip ? 'ทำครบทุกข้อในหัวข้อนี้แล้ว' : 'ยังไม่มีข้อสอบในหัวข้อนี้'); return dash(); }
-  Q = { mode, std, ind, skip: skip || 0, qs };
+  Q = { mode, std, ind, skip: skip || 0, qs, secure: !!secure }; // secure = โหมดสอบของครู (ดู README: ไม่โหลดไฟล์เฉลยลงเครื่องนักเรียน ให้ Apps Script ตรวจและตอบเฉพาะถูก/ผิด)
   const full = qs.reduce((n, q) => n + (+q.points || 0), 0);
   app.innerHTML = '<div class="card"><h2>' + (mode === 'mock' ? 'ข้อสอบจำลองตาม Test Blueprint' : mode === 'year' ? 'ข้อสอบ O-NET ปีการศึกษา ' + esc(std) : 'ฝึกมาตรฐาน ' + esc(std) + (ind ? ' · ' + esc(ind) : '')) + ' <span class="mute">(' + qs.length + ' ข้อ' + (mode === 'year' ? '' : ' ' + Math.round(full * 100) / 100 + ' คะแนน เรียงจากปีล่าสุด') + ')</span></h2><form id="f">' +
     qs.map((q, i) => '<div class="q">' + qHead(q, i) + qInput(q, i) + '</div>').join('') +
     '<div class="row"><button>ส่งคำตอบ</button><button type="button" class="ghost" data-a="pdf">ดาวน์โหลดข้อสอบ PDF</button><button type="button" class="ghost" data-a="dash">ยกเลิก</button></div></form></div>';
   $('#f').onsubmit = e => { e.preventDefault(); run(submit); };
+  if (!secure) yearsOf(qs).forEach(y => { cj(lv + '/k-' + y + '.json').catch(() => {}); if (mode === 'year') cj(lv + '/s-' + y + '.json', true).catch(() => {}); }); // เตรียมเฉลยไว้ตรวจทันที
 }
 function showAns(q, v) {
   if (!v) return '–';
@@ -316,6 +381,7 @@ function showAns(q, v) {
   return esc(v);
 }
 function review(q, i, x) {
+  if (x.hidden) return ''; // โหมดสอบของครู: ไม่มีเฉลยในเครื่องนักเรียน
   if (q.type === 'complex') {
     const y = parts(x.yours), a = parts(x.answer);
     return '<div class="scroll"><table class="cx"><tr><th>ข้อ</th><th>ข้อความ</th><th>ตอบ</th><th>เฉลย</th><th></th></tr>' + q.choices.map((c, k) =>
@@ -330,16 +396,45 @@ async function submit() {
   const left = Q.qs.filter(q => !answered(q, answers[q.id])).length;
   if (left && !confirm('ยังตอบไม่ครบ ' + left + ' ข้อ (ข้อเชิงซ้อน/เรียงลำดับต้องตอบทุกข้อย่อย) ส่งคำตอบเลยหรือไม่?')) return;
   loading('กำลังตรวจคำตอบ…');
-  const r = await api('submit', { code: S.code, studentId: S.student.id, mode: Q.mode, standard: Q.std || '', ids: Q.qs.map(q => q.id), answers });
-  const by = {}; r.items.forEach(i => by[i.id] = i);
-  let sols = {}; try { sols = await api('solutions', { level: S.level, keys: Q.qs.map(q => q.examYear + '/' + q.itemNo) }); } catch (e) { sols = {}; }
+  const my = VIEW, lv = S.level, years = yearsOf(Q.qs);
+  const att = { attemptId: uuid(), code: S.code, studentId: S.student.id, mode: Q.mode, standard: Q.std || '', keys: Q.qs.map(q => q.examYear + '/' + q.itemNo), answers: {}, rev: {} };
+  Q.qs.forEach(q => { att.answers[q.examYear + '/' + q.itemNo] = answers[q.id]; });
+  years.forEach(y => { att.rev[y] = revOf(lv + '/k-' + y + '.json'); });
+  let items, r;
+  if (Q.secure) {
+    // โหมดสอบของครู: เฉลยไม่ถูกส่งมาเครื่องนี้ ให้ Apps Script ตรวจและบันทึกในคำขอเดียว ได้กลับมาเฉพาะถูก/ผิดและคะแนน
+    const sr = await api('submitAttempt', Object.assign({}, att, { secure: true })), mm = {};
+    (sr.items || []).forEach(i => { mm[i.k] = i; });
+    items = Q.qs.map(q => { const i = mm[q.examYear + '/' + q.itemNo] || {}; return { id: q.id, type: q.type, yours: normAns(q.type, answers[q.id]), ok: i.ok || 0, answer: '', explanation: '', hidden: true, s: q.standard, points: i.points || q.points, earned: i.earned || 0 }; });
+    r = { total: sr.total, correct: sr.correct, score: sr.score, maxScore: sr.maxScore };
+  } else {
+    const kf = {};
+    await Promise.all(years.map(async y => { kf[y] = await cj(lv + '/k-' + y + '.json'); }));
+    // ตรวจคำตอบในเครื่อง (กติกาเดียวกับ Apps Script: grade.js) เห็นผลทันที
+    items = Q.qs.map(q => {
+      const e = kf[q.examYear][q.itemNo] || {}, t = e.t || q.type, a = normAns(t, answers[q.id]), key = normAns(t, e.a), pts = points(lv, t), ok = isRight(t, a, key) ? 1 : 0;
+      return { id: q.id, type: t, yours: a, ok, answer: key, explanation: e.e || '', s: q.standard, points: pts, earned: earnedOf(lv, q.examYear, t, a, key, pts) };
+    });
+    const sum0 = f => Math.round(items.reduce((n, i) => n + i[f], 0) * 100) / 100;
+    r = { total: items.length, correct: sum0('ok'), score: sum0('earned'), maxScore: sum0('points') };
+    att.chk = { score: r.score, correct: r.correct };
+  }
+  const by = {}; items.forEach(i => by[i.id] = i);
   app.innerHTML = '<div class="card"><h2>' + (Q.mode === 'year' ? 'ได้ ' + pct(r.score, r.maxScore) : 'ได้ ' + r.score + ' / ' + r.maxScore + ' คะแนน (' + pct(r.score, r.maxScore) + ')') + ' <span class="mute">ถูก ' + r.correct + ' จาก ' + r.total + ' ข้อ</span></h2>' +
+    '<p class="mute" id="savestat" data-id="' + att.attemptId + '">' + (Q.secure ? 'บันทึกคะแนนแล้ว ✓' : 'กำลังบันทึกคะแนน…') + '</p>' +
     '<p class="mute">ข้อเชิงซ้อนให้คะแนนบางส่วนตามเกณฑ์ในคำชี้แจงของข้อสอบแต่ละฉบับ · ข้อเรียงลำดับได้คะแนนเมื่อถูกทุกลำดับ</p>' +
     Q.qs.map((q, i) => { const x = by[q.id] || {};
       return '<div class="q">' + qHead(q, i) + '<div class="' + (x.ok ? 'ok' : 'bad') + '">' + (x.ok ? '✓ ถูก' : x.earned > 0 ? '◐ ถูกบางส่วน' : '✗ ' + (x.yours ? 'ผิด' : 'ไม่ได้ตอบ')) + '' + (Q.mode === 'year' ? '' : ' <span class="mute">(' + (x.earned || 0) + '/' + (x.points || 0) + ' คะแนน)</span>') + '</div>' +
-        review(q, i, x) + (x.explanation ? '<div class="mute">' + fmt(x.explanation) + '</div>' : '') + solBlock(sols[q.examYear + '/' + q.itemNo], i) + '</div>'; }).join('') +
+        review(q, i, x) + (x.explanation ? '<div class="mute">' + fmt(x.explanation) + '</div>' : '') + '<div id="slot-' + i + '"></div></div>'; }).join('') +
     '<div class="row">' + (Q.mode === 'practice' ? '<button data-a="next">ชุดถัดไป</button>' : '') + '<button class="ghost" data-a="pdf">ดาวน์โหลดเฉลย PDF</button><button class="ghost" data-a="dash">กลับหน้าสรุป</button></div></div>';
   window.scrollTo(0, 0);
+  if (!Q.secure) enqueue(att); // บันทึกคะแนนเบื้องหลัง (Apps Script ตรวจซ้ำก่อนบันทึก)
+  const qs = Q.qs; // เฉลยละเอียดโหลดตามมา ใส่ลงช่องของแต่ละข้อ
+  if (!Q.secure) Q.sols = Promise.all(years.map(async y => { try { return (await cj(lv + '/s-' + y + '.json', true)) || {}; } catch (e) { return {}; } })).then(fs => {
+    const sf = {}; years.forEach((y, i) => { sf[y] = fs[i]; });
+    if (VIEW !== my) return;
+    qs.forEach((q, i) => { const s = (sf[q.examYear] || {})[q.itemNo], el = document.getElementById('slot-' + i); if (s && el) el.outerHTML = solBlock({ title: s.t, content: s.c }, i); });
+  });
 }
 
 /* ---------- แหล่งข้อมูล สทศ. ---------- */
@@ -360,7 +455,7 @@ async function admin() {
   loading();
   const d = await api('adminData', { token: S.token }), sup = d.me.role === 'super';
   A.school = sup ? (A.school || (d.schools[0] || {}).id || '') : d.me.schoolId;
-  const tabs = [['students', 'นักเรียน'], ['report', 'รายงานผล'], ['admins', 'แอดมิน']].concat(sup ? [['schools', 'โรงเรียน'], ['bank', 'คลังข้อสอบ'], ['bp', 'ผังข้อสอบ'], ['sm', 'สรุปเนื้อหา'], ['sol', 'เฉลยละเอียด']] : []);
+  const tabs = [['students', 'นักเรียน'], ['report', 'รายงานผล'], ['admins', 'แอดมิน']].concat(sup ? [['schools', 'โรงเรียน'], ['content', 'เนื้อหา']] : []);
   const fileIn = id => '<input type="file" accept=".tsv,.txt,.csv" data-into="' + id + '" class="noprint">';
   const sName = id => (d.schools.find(s => s.id === id) || {}).name || '';
   const pick = '<div class="row">' + (sup ? '<select id="as">' + d.schools.map(s => '<option value="' + esc(s.id) + '"' + (s.id === A.school ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>' : '<b>' + esc(sName(A.school)) + '</b>') +
@@ -381,26 +476,14 @@ async function admin() {
       (sup ? '<div class="row"><select name="role"><option value="school">แอดมินโรงเรียน</option><option value="super">ผู้ดูแลกลาง</option></select><select name="schoolId">' + d.schools.map(s => '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>').join('') + '</select></div>' : '') + '<p><button>เพิ่มแอดมิน</button></p></form>';
   } else if (A.tab === 'schools') {
     body = '<table>' + d.schools.map(s => '<tr><td>' + esc(s.name) + '</td></tr>').join('') + '</table><form id="sc"><div class="row"><input name="name" placeholder="ชื่อโรงเรียนใหม่" required><button>เพิ่มโรงเรียน</button></div></form><p class="mute">เพิ่มโรงเรียนแล้วไปที่แท็บ "แอดมิน" เพื่อสร้างบัญชีแอดมินของโรงเรียนนั้น</p>';
-  } else if (A.tab === 'bp') {
-    const b = await api('blueprintStats', { token: S.token });
-    body = '<table><tr><th>ระดับ</th><th>ปีการศึกษา</th><th class="n">มาตรฐาน</th><th class="n">ตัวชี้วัด</th><th class="n">จำนวนข้อ</th></tr>' + b.map(x => '<tr><td>' + esc(LV[x.level] || x.level) + '</td><td>' + esc(x.year) + '</td><td class="n">' + x.standards + '</td><td class="n">' + x.indicators + '</td><td class="n">' + x.items + '</td></tr>').join('') + '</table>' +
-      '<label>นำเข้าผังข้อสอบ (Test Blueprint)</label><p class="mute">เลือกไฟล์ <b>data/blueprint.tsv</b> หรือวางข้อมูล 9 คอลัมน์: level · year · strand · standard · indicator · description · items · format · points — ผังเดิมของระดับที่อยู่ในไฟล์จะถูกแทนที่ทั้งหมด</p>' +
-      fileIn('bpt') + '<textarea id="bpt"></textarea><p><button data-a="impbp">นำเข้าผังข้อสอบ</button></p>';
-  } else if (A.tab === 'sol') {
-    const b = await api('solutionStats', { token: S.token });
-    body = '<table><tr><th>ระดับ</th><th>ปีการศึกษา</th><th class="n">จำนวนข้อ</th></tr>' + b.map(x => '<tr><td>' + esc(LV[x.level] || x.level) + '</td><td>' + esc(x.examYear) + '</td><td class="n">' + x.n + '</td></tr>').join('') + '</table>' +
-      '<label>นำเข้าเฉลยละเอียด (เลือกไฟล์ในโฟลเดอร์ import-bundles/ หรือ data/solutions/*.txt ครั้งละไฟล์)</label><p class="mute">แต่ละข้อขึ้นต้นด้วยบรรทัด <b>@@ ระดับ | ปี | ข้อที่ | มาตรฐาน | ตัวชี้วัด | ชื่อหัวข้อ</b> · เฉลยเดิมของข้อที่อยู่ในไฟล์จะถูกแทนที่ ข้ออื่นคงไว้ (นำเข้าซ้ำได้)</p>' +
-      fileIn('slt') + '<textarea id="slt"></textarea><p><button data-a="impsol">นำเข้าเฉลยละเอียด</button></p>';
-  } else if (A.tab === 'sm') {
-    const b = await api('summaryStats', { token: S.token });
-    body = '<table><tr><th>ระดับ</th><th>มาตรฐาน</th><th class="n">หัวข้อ</th><th class="n">ตัวอักษร</th></tr>' + b.map(x => '<tr><td>' + esc(LV[x.level] || x.level) + '</td><td>' + esc(x.standard) + '</td><td class="n">' + x.sections + '</td><td class="n">' + x.chars + '</td></tr>').join('') + '</table>' +
-      '<label>นำเข้าสรุปเนื้อหา (เลือกไฟล์ data/summaries/*.txt ได้ครั้งละไฟล์)</label><p class="mute">แต่ละหัวข้อขึ้นต้นด้วยบรรทัด <b>@@ ระดับ | มาตรฐาน | ตัวชี้วัด | ชื่อหัวข้อ</b> · สรุปเดิมของมาตรฐาน (ระดับ+มาตรฐาน) ที่อยู่ในไฟล์จะถูกแทนที่ทั้งหมด มาตรฐานอื่นคงไว้ · ภาพ SVG อยู่ในโฟลเดอร์ figs/ ต้องอัปโหลดพร้อม index.html</p>' +
-      fileIn('smt') + '<textarea id="smt"></textarea><p><button data-a="impsm">นำเข้าสรุปเนื้อหา</button></p>';
-  } else {
-    const b = await api('bankStats', { token: S.token });
-    body = '<table><tr><th>ระดับ</th><th>ปีการศึกษา</th><th class="n">จำนวนข้อ</th></tr>' + b.map(x => '<tr><td>' + esc(LV[x.level] || x.level) + '</td><td>' + esc(x.examYear) + '</td><td class="n">' + x.n + '</td></tr>').join('') + '</table>' +
-      '<label>นำเข้าข้อสอบ (เลือกไฟล์ data/questions-*.tsv หรือวางจาก Google Sheets/Excel 11 คอลัมน์)</label><p class="mute">level(P6/M3) · ปีการศึกษา · ข้อที่ · มาตรฐาน (เช่น ว 1.1) · ตัวชี้วัด (เช่น ป.6/1) · โจทย์ · ลิงก์รูป (ชื่อไฟล์ในโฟลเดอร์ images/ หรือ https) · ตัวเลือก/ข้อความย่อยคั่นด้วย || · เฉลย · คำอธิบาย · ชนิด (mc / complex / order / fill)</p>' +
-      fileIn('qt') + '<textarea id="qt"></textarea><p><button data-a="impq">นำเข้าข้อสอบ</button></p>';
+  } else if (A.tab === 'content') {
+    const st = await cj('stats.json'), mf = await manifest(), t = (head, rows) => '<table><tr>' + head.map(h => '<th' + (h[1] ? ' class="n"' : '') + '>' + h[0] + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map((x, i) => '<td' + (head[i][1] ? ' class="n"' : '') + '>' + esc(x) + '</td>').join('') + '</tr>').join('') + '</table>';
+    const sumN = (a, f) => a.reduce((n, x) => n + f(x), 0);
+    body = '<p class="mute">เนื้อหา (ผังข้อสอบ ข้อสอบ สรุป เฉลย) โหลดจากไฟล์ JSON บนเว็บนี้ ไม่ได้เก็บในชีต · แก้ที่โฟลเดอร์ data/ แล้วรัน node tools/publish.mjs (ไม่ต้องนำเข้า) · ฉบับ ' + esc(mf.rev) + ' สร้างเมื่อ ' + esc(new Date(mf.built).toLocaleString('th-TH')) + '</p>' +
+      '<h3>คลังข้อสอบ รวม ' + sumN(st.bank, x => x.n) + ' ข้อ</h3>' + t([['ระดับ'], ['ปีการศึกษา'], ['จำนวนข้อ', 1]], st.bank.map(x => [LV[x.level] || x.level, x.examYear, x.n])) +
+      '<h3>เฉลยละเอียด รวม ' + sumN(st.sol, x => x.n) + ' ข้อ</h3>' + t([['ระดับ'], ['ปีการศึกษา'], ['จำนวนข้อ', 1]], st.sol.map(x => [LV[x.level] || x.level, x.examYear, x.n])) +
+      '<h3>ผังข้อสอบ</h3>' + t([['ระดับ'], ['ปีการศึกษา'], ['มาตรฐาน', 1], ['ตัวชี้วัด', 1], ['จำนวนข้อ', 1]], st.bp.map(x => [LV[x.level] || x.level, x.year, x.standards, x.indicators, x.items])) +
+      '<h3>สรุปเนื้อหา รวม ' + sumN(st.sm, x => x.sections) + ' หัวข้อ</h3>' + t([['ระดับ'], ['มาตรฐาน'], ['หัวข้อ', 1], ['ตัวอักษร', 1]], st.sm.map(x => [LV[x.level] || x.level, x.standard, x.sections, x.chars]));
   }
   app.innerHTML = '<div class="card"><div class="row"><h2>' + esc(d.me.name) + '</h2><button class="ghost" data-a="logout">ออกจากระบบ</button></div><div class="tabs">' + tabs.map(t => '<button data-a="tab" data-t="' + t[0] + '"' + (A.tab === t[0] ? ' class="on"' : '') + '>' + t[1] + '</button>').join('') + '</div>' + body + '</div>' + nav();
   if ($('#as')) $('#as').onchange = e => { A.school = e.target.value; run(admin); };
@@ -417,7 +500,7 @@ const ACT = {
   pick: d => { S.student = { id: d.id, name: d.name }; save(); return dash(); },
   room: () => { S.code = S.student = null; save(); return home(); },
   sol: d => { const b = $('#sol-' + d.k), on = b.classList.toggle('open'); document.querySelector('[data-a=sol][data-k="' + d.k + '"]').textContent = on ? 'ซ่อนเฉลยละเอียด' : 'ดูเฉลยละเอียด'; },
-  pdf: () => { app.querySelectorAll('.sol').forEach(s => s.classList.add('open')); const h = app.querySelector('h2'); document.title = 'O-NET วิทย์ ' + LV[S.level] + ' - ' + (h ? h.textContent.trim() : ''); window.print(); },
+  pdf: async () => { if (Q && Q.sols) await Q.sols; app.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; }); await Promise.all([...app.querySelectorAll('img')].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })))); app.querySelectorAll('.sol').forEach(s => s.classList.add('open')); const h = app.querySelector('h2'); document.title = 'O-NET วิทย์ ' + LV[S.level] + ' - ' + (h ? h.textContent.trim() : ''); window.print(); },
   mock: () => quiz('mock'),
   year: d => quiz('year', d.y),
   study: d => study(d.std, d.ind || ''),
@@ -429,12 +512,9 @@ const ACT = {
   rcreset: async d => { if (confirm('สร้างรหัสใหม่? รหัสเดิมจะใช้ไม่ได้ทันที นักเรียนต้องกรอกรหัสใหม่')) { const r = await api('resetRoomCode', { token: S.token, code: d.code }); toast('รหัสใหม่: ' + r.code); await admin(); } },
   delst: async d => { if (confirm('ลบนักเรียนคนนี้?')) { await api('removeStudent', { token: S.token, id: d.id }); await admin(); } },
   delad: async d => { if (confirm('ลบแอดมินคนนี้?')) { await api('removeAdmin', { token: S.token, id: d.id }); await admin(); } },
-  impq: async () => { const r = await api('importQuestions', { token: S.token, text: $('#qt').value }); toast('นำเข้าแล้ว ' + r.added + ' ข้อ'); await admin(); },
-  impsol: async () => { const r = await api('importSolutions', { token: S.token, text: $('#slt').value }); toast('นำเข้าเฉลยละเอียดแล้ว ' + r.added + ' ข้อ'); await admin(); },
-  impsm: async () => { const r = await api('importSummaries', { token: S.token, text: $('#smt').value }); toast('นำเข้าสรุปแล้ว ' + r.added + ' หัวข้อ (' + r.standards.join(', ') + ')'); await admin(); },
-  impbp: async () => { const r = await api('importBlueprint', { token: S.token, text: $('#bpt').value }); toast('นำเข้าผังแล้ว ' + r.added + ' แถว (' + r.levels.map(l => LV[l] || l).join(', ') + ')'); await admin(); }
 };
 app.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && ACT[b.dataset.a]) { e.preventDefault(); run(() => ACT[b.dataset.a](b.dataset)); } });
+flushQ(); // คะแนนที่ยังไม่ได้ส่ง (เช่น ปิดเว็บ/เน็ตหลุดตอนส่ง) ส่งต่อเมื่อเปิดเว็บใหม่
 const SUMQ = new URLSearchParams(location.search).get('sum');
 run(() => { if (SUMQ && S.level && API_URL) { const [std, ind, hl] = SUMQ.split('|'); return study(std, ind, hl); } return S.student && S.code && API_URL ? dash() : home(); });
 </script>

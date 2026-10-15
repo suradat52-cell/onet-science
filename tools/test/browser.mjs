@@ -9,8 +9,13 @@ import { at, TOOLS, POINTS, expectedScore, imgsOf, alts, isRight, BLOCK_REAL_API
 
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
   "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
-const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8"));
-const BASE = `http://localhost:${cfg.port}/`, OUT = path.join(TOOLS, ".cache", "test");
+// ทดสอบกับเว็บจริง: ONET_LIVE_BASE=https://…/ ONET_ROOMS="P6=รหัส,M3=รหัส" (ห้องของโรงเรียนทดสอบ) · ONET_VIEWPORT=390x844 = จอมือถือ
+const LIVE = process.env.ONET_LIVE_BASE;
+const cfg = LIVE ? { rooms: Object.fromEntries(process.env.ONET_ROOMS.split(",").map(x => x.split("="))) } : JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8"));
+const [VW, VH] = (process.env.ONET_VIEWPORT || "900x1000").split("x").map(Number), MOBILE = VW < 600;
+const BASE = LIVE || `http://localhost:${cfg.port}/`, OUT = path.join(TOOLS, ".cache", LIVE ? "test-live" + (MOBILE ? "-mobile" : "") : "test");
+const timing = [];
+const timed = async (name, fn) => { const t = Date.now(); const r = await fn(); timing.push([name, Date.now() - t]); return r; };
 fs.mkdirSync(OUT, { recursive: true });
 // allSets = ทุกไฟล์ที่เซิร์ฟเวอร์จำลองโหลด (ใช้กับหน้าสรุปผัง) · sets = เฉพาะปีที่สั่งทดสอบ
 const allSets = fs.readdirSync(at("data")).map(f => f.match(/^questions-(P6|M3)-(\d+)\.tsv$/)).filter(Boolean)
@@ -34,9 +39,9 @@ function wrongOf(type, key, nChoices, nth) {
 const results = [];
 const check = (name, ok, info = "") => { results.push({ name, ok, info }); console.log((ok ? "PASS " : "FAIL ") + name + (ok || !info ? "" : "  " + info)); };
 
-const browser = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API });
+const browser = await puppeteer.launch({ executablePath: EDGE, headless: true, args: LIVE ? [] : BLOCK_REAL_API });
 const page = await browser.newPage();
-await page.setViewport({ width: 900, height: 1000 });
+await page.setViewport({ width: VW, height: VH, isMobile: MOBILE, hasTouch: MOBILE, deviceScaleFactor: MOBILE ? 2 : 1 });
 page.on("dialog", d => d.accept());
 page.on("pageerror", e => check("ไม่มี JS error", false, e.message));
 const click = async sel => { await page.waitForSelector(sel); await page.$eval(sel, b => b.click()); };
@@ -48,17 +53,17 @@ async function enter(lv) {
   await page.goto(BASE, { waitUntil: "networkidle0" });
   await page.evaluate(() => localStorage.clear());
   await page.goto(BASE, { waitUntil: "networkidle0" });
-  await page.waitForSelector("#cc"); await page.type("#cc", cfg.rooms[lv].toLowerCase()); await click("#cf button"); await idle();
-  await click('button[data-a="pick"]'); await idle();
+  await page.waitForSelector("#cc"); await timed(lv + " กรอกรหัสห้อง→เห็นรายชื่อ", async () => { await page.type("#cc", cfg.rooms[lv].toLowerCase()); await click("#cf button"); await idle(); });
+  await timed(lv + " เลือกชื่อ→หน้าแรกนักเรียน", async () => { await click('button[data-a="pick"]'); await idle(); });
 }
 
 let total = { img: 0 };
 for (const { lv, year, rows } of sets) {
   const tag = `${lv}-${year}`;
   await enter(lv);
-  await click(`button[data-a="year"][data-y="${year}"]`); await idle();
-  await page.waitForSelector("#f");
-  await loadImgs();
+  await timed(`${tag} เปิดข้อสอบรายปี`, async () => { await click(`button[data-a="year"][data-y="${year}"]`); await idle(); await page.waitForSelector("#f"); });
+  await timed(`${tag} โหลดภาพหน้าข้อสอบ`, loadImgs);
+  if (MOBILE) check(`${tag} มือถือ: ไม่มีแถบเลื่อนแนวนอน (หน้าข้อสอบ)`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "scrollWidth เกินจอ");
   const imgs = await page.$$eval("#f img", a => a.map(i => ({ src: i.getAttribute("src"), ok: i.complete && i.naturalWidth > 0 })));
   const nImg = rows.reduce((n, r) => n + imgsOf(r).length, 0); total.img += nImg;
   check(`${tag} ภาพหน้าข้อสอบ ${imgs.filter(i => i.ok).length}/${nImg}`, imgs.length === nImg && imgs.every(i => i.ok), imgs.filter(i => !i.ok).map(i => i.src).join(","));
@@ -88,14 +93,18 @@ for (const { lv, year, rows } of sets) {
   for (const t of ["complex", "order", "fill"]) { const i = rows.findIndex(r => r[10] === t); if (i >= 0) await shot(`#f .q:nth-of-type(${i + 1})`, `${tag}-${t}.png`); }
   { const i = rows.findIndex(r => r[10] === "mc" && !r[7]); if (i >= 0) await shot(`#f .q:nth-of-type(${i + 1})`, `${tag}-mc-image.png`); }
   await pdf(`${tag}-exam.pdf`);
-  await page.$eval("#f button:not([type])", b => b.click());
-  await page.waitForFunction(() => /ได้ .*%/.test(document.querySelector("h2")?.textContent || ""), { timeout: 20000 });
+  await timed(`${tag} ส่งคำตอบ→เห็นคะแนน`, async () => { await page.$eval("#f button:not([type])", b => b.click());
+  await page.waitForFunction(() => /ได้ .*%/.test(document.querySelector("h2")?.textContent || ""), { timeout: 60000 }); });
+  if (MOBILE) check(`${tag} มือถือ: ไม่มีแถบเลื่อนแนวนอน (หน้าเฉลย)`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "scrollWidth เกินจอ");
   // โหมดรายปี: แสดงร้อยละและจำนวนข้อที่ถูก ไม่แสดงคะแนนเต็ม
   const h2 = await page.$eval("h2", h => h.textContent), m = h2.match(/ได้ (\d+)%.*ถูก (\d+) จาก (\d+) ข้อ/), pctExp = Math.round(exp * 100 / max);
   check(`${tag} ร้อยละ ${m?.[1]}% ถูก ${m?.[2]}/${m?.[3]} (คาด ${pctExp}% ถูก ${ok}/${rows.length})`, m && +m[1] === pctExp && +m[2] === ok && +m[3] === rows.length, h2);
   check(`${tag} ไม่แสดงคะแนนเต็ม`, !/\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?\s*คะแนน/.test(await page.$eval("main", x => x.textContent)), "พบคะแนนเต็ม");
+  // คะแนนเห็นทันทีที่ตรวจในเครื่อง แล้วบันทึกเบื้องหลัง: Apps Script ตรวจซ้ำต้องได้ค่าเดียวกัน (ถ้าต่างจะขึ้นข้อความ "ระบบตรวจซ้ำ")
+  await page.waitForFunction(() => /บันทึกคะแนนแล้ว/.test(document.getElementById("savestat")?.textContent || ""), { timeout: 90000 }).catch(() => {});
+  { const sv = await page.$eval("#savestat", e => e.textContent).catch(() => "ไม่พบ #savestat"); check(`${tag} บันทึกคะแนนเบื้องหลังสำเร็จ และ Apps Script ตรวจซ้ำได้ค่าเดียวกัน`, sv === "บันทึกคะแนนแล้ว ✓", sv); }
   await loadImgs();
-  const rImg = await page.$$eval("main img", a => a.filter(i => i.complete && i.naturalWidth > 0).length);
+  const rImg =await page.$$eval("main img", a => a.filter(i => i.complete && i.naturalWidth > 0).length);
   check(`${tag} ภาพหน้าเฉลย ${rImg}/${nImg}`, rImg === nImg);
   await pdf(`${tag}-answers.pdf`);
 }
@@ -107,6 +116,7 @@ for (const lv of [...new Set(sets.map(s => s.lv))]) {
   check(`${lv} หน้าสรุปผัง ป้ายนอกผัง ${got}/${exp}`, got === exp);
 }
 await browser.close();
+if (LIVE) { console.log("\nเวลาแต่ละขั้น (ms)"); for (const [n, ms] of timing) console.log(String(ms).padStart(7) + "  " + n); }
 fs.writeFileSync(path.join(OUT, "results.json"), JSON.stringify(results, null, 1));
 const fail = results.filter(r => !r.ok).length;
 console.log(`\nภาพรวม ${total.img} ภาพ · ${fail ? "ไม่ผ่าน " + fail + " รายการ" : "ผ่านทั้งหมด " + results.length + " รายการ"} · ผลอยู่ที่ ${OUT}`);

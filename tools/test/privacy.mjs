@@ -18,20 +18,20 @@ const denied = async (name, action, p, re = /รหัสห้องเรี�
 
 const token = (await api("login", { username: cfg.username, password: cfg.password })).token;
 const P6 = cfg.rooms.P6, M3 = cfg.rooms.M3;
-const stuP6 = (await api("listStudents", { code: P6 }))[0];
+const stuP6 = (await api("enter", { code: P6 })).students[0];
 
 /* ไม่มีรหัส / รหัสผิด → ไม่ได้รายชื่อ */
-await denied("listStudents ไม่ใส่รหัส", "listStudents", {});
-await denied("listStudents ใส่ schoolId+level แบบเดิม (ไม่มีรหัส)", "listStudents", { schoolId: cfg.schoolId, level: "P6" });
-await denied("listStudents รหัสผิด", "listStudents", { code: "AAAAAA" });
-await denied("listStudents รหัสสั้นเกิน", "listStudents", { code: "ABC" });
-await denied("joinRoom ไม่ใส่รหัส", "joinRoom", {});
+await denied("enter (รายชื่อ) ไม่ใส่รหัส", "enter", {});
+await denied("enter (รายชื่อ) ใส่ schoolId+level แบบเดิม (ไม่มีรหัส)", "enter", { schoolId: cfg.schoolId, level: "P6" });
+await denied("enter (รายชื่อ) รหัสผิด", "enter", { code: "AAAAAA" });
+await denied("enter (รายชื่อ) รหัสสั้นเกิน", "enter", { code: "ABC" });
+await denied("joinRoom ไม่ใส่รหัส", "enter", {});
 await denied("listSchools ถูกถอดออก (ไม่เปิดรายชื่อโรงเรียน)", "listSchools", {});
-await denied("overview ไม่ใส่รหัส", "overview", { level: "P6", studentId: stuP6.id });
-await denied("overview รหัสห้อง ม.3 กับนักเรียน ป.6", "overview", { code: M3, studentId: stuP6.id });
-await denied("submit ไม่ใส่รหัส", "submit", { studentId: stuP6.id, ids: [], answers: {} });
-await denied("submit รหัสผิด", "submit", { code: "ZZZZZZ", studentId: stuP6.id, ids: [], answers: {} });
-await denied("submit รหัสห้อง ม.3 กับนักเรียน ป.6", "submit", { code: M3, studentId: stuP6.id, ids: [], answers: {} });
+await denied("progress ไม่ใส่รหัส", "progress", { level: "P6", studentId: stuP6.id });
+await denied("progress รหัสห้อง ม.3 กับนักเรียน ป.6", "progress", { code: M3, studentId: stuP6.id });
+await denied("submit ไม่ใส่รหัส", "submitAttempt", { studentId: stuP6.id, keys: [], answers: {} });
+await denied("submit รหัสผิด", "submitAttempt", { code: "ZZZZZZ", studentId: stuP6.id, keys: [], answers: {} });
+await denied("submit รหัสห้อง ม.3 กับนักเรียน ป.6", "submitAttempt", { code: M3, studentId: stuP6.id, keys: [], answers: {} });
 await denied("students (แอดมิน) ไม่มี token", "students", { schoolId: cfg.schoolId, level: "P6" });
 await denied("report (แอดมิน) ไม่มี token", "report", { schoolId: cfg.schoolId, level: "P6" });
 await denied("roomCodes ไม่มี token", "roomCodes", { schoolId: cfg.schoolId, level: "P6" });
@@ -39,13 +39,13 @@ await denied("students token ปลอม", "students", { token: "fake", schoolI
 await denied("resetRoomCode ไม่มี token", "resetRoomCode", { code: P6 });
 
 /* รหัสถูก → ได้เฉพาะห้องตัวเอง */
-const j = await api("joinRoom", { code: " " + P6.toLowerCase().slice(0, 3) + "-" + P6.slice(3) + " " });
+const j = await api("enter", { code: " " + P6.toLowerCase().slice(0, 3) + "-" + P6.slice(3) + " " });
 t("joinRoom รับรหัสพิมพ์เล็ก/มีช่องว่าง/ขีด และบอกโรงเรียน-ระดับ-ห้อง", j.level === "P6" && j.room === "6/1" && /ทดสอบ/.test(j.school), JSON.stringify(j));
-const ls = await api("listStudents", { code: P6 });
-t("listStudents รหัสถูก ได้เฉพาะห้องของรหัส", ls.length === 1 && ls[0].name.includes("ป.หก") && !ls.some(s => s.name.includes("ม.สาม")), JSON.stringify(ls));
-t("รหัสห้อง ม.3 ได้เฉพาะ ม.3", (await api("listStudents", { code: M3 })).every(s => s.name.includes("ม.สาม")));
-const ov = await api("overview", { code: P6, studentId: stuP6.id });
-t("overview รหัสถูก + นักเรียนในห้อง ใช้ได้", Array.isArray(ov.standards));
+const ls = (await api("enter", { code: P6 })).students;
+t("enter (รายชื่อ) รหัสถูก ได้เฉพาะห้องของรหัส", ls.length === 1 && ls[0].name.includes("ป.หก") && !ls.some(s => s.name.includes("ม.สาม")), JSON.stringify(ls));
+t("รหัสห้อง ม.3 ได้เฉพาะ ม.3", ((await api("enter", { code: M3 })).students).every(s => s.name.includes("ม.สาม")));
+const ov = await api("progress", { code: P6, studentId: stuP6.id });
+t("progress รหัสถูก + นักเรียนในห้อง ใช้ได้", ov.done && Array.isArray(ov.history));
 t("รหัสเป็นตัวอักษร 6 ตัว ไม่มี 0 O 1 I L", /^[A-HJKMNP-Z2-9]{6}$/.test(P6) && /^[A-HJKMNP-Z2-9]{6}$/.test(M3) && P6 !== M3, P6 + " " + M3);
 
 /* แยกโรงเรียน: โรงเรียนที่ 2 มีรหัสของตัวเอง แอดมินโรงเรียนอื่นดูไม่ได้ */
@@ -54,7 +54,7 @@ await api("addStudents", { token, schoolId: s2, level: "P6", text: "6/1,1,เด
 const rc2 = await api("roomCodes", { token, schoolId: s2, level: "P6" });
 t("สร้างรหัสให้ทุกห้องอัตโนมัติ (2 ห้อง) และรหัสไม่ซ้ำ", rc2.length === 2 && rc2[0].code !== rc2[1].code && !rc2.some(r => r.code === P6));
 t("รหัสห้องเดิมไม่เปลี่ยนเมื่อเรียกซ้ำ", JSON.stringify(await api("roomCodes", { token, schoolId: s2, level: "P6" })) === JSON.stringify(rc2));
-t("โรงเรียนที่ 2 ห้อง 6/1 เห็นเฉพาะห้องนั้น", (await api("listStudents", { code: rc2[0].code })).map(s => s.name).join() === "เด็กชายโรงเรียนสอง");
+t("โรงเรียนที่ 2 ห้อง 6/1 เห็นเฉพาะห้องนั้น", ((await api("enter", { code: rc2[0].code })).students).map(s => s.name).join() === "เด็กชายโรงเรียนสอง");
 await api("saveAdmin", { token, username: "t2admin", password: "secret123", name: "ครูสอง", role: "school", schoolId: s2 });
 const t2 = (await api("login", { username: "t2admin", password: "secret123" })).token;
 const own = await api("students", { token: t2, schoolId: cfg.schoolId, level: "P6" }); // พยายามขอโรงเรียนแรก ต้องได้โรงเรียนของตัวเอง
@@ -66,8 +66,8 @@ await denied("แอดมินโรงเรียนอื่นรีเซ
 /* รีเซ็ตรหัส: รหัสเก่าใช้ไม่ได้ทันที */
 const old = rc2[0].code, nw = (await api("resetRoomCode", { token: t2, code: old })).code;
 t("รีเซ็ตรหัสแล้วรหัสใหม่ต่างจากเดิม", nw !== old && /^[A-Z2-9]{6}$/.test(nw));
-await denied("รหัสเก่าหลังรีเซ็ตใช้ไม่ได้", "listStudents", { code: old });
-t("รหัสใหม่ใช้ได้", (await api("listStudents", { code: nw })).length === 1);
+await denied("รหัสเก่าหลังรีเซ็ตใช้ไม่ได้", "enter", { code: old });
+t("รหัสใหม่ใช้ได้", ((await api("enter", { code: nw })).students).length === 1);
 
 /* หน้าเว็บ: หน้าแรกไม่แสดงรายชื่อโรงเรียนหรือนักเรียน ต้องกรอกรหัสก่อน */
 const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));

@@ -9,6 +9,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { ROOT } from "./lib.mjs";
+import { buildContent } from "./build-content.mjs";
 
 const args = process.argv.slice(2);
 const flag = n => args.find(a => a.startsWith("--" + n + "="))?.slice(n.length + 3);
@@ -34,10 +35,16 @@ if (!fs.existsSync(path.join(dst, ".git"))) die("ไม่พบ repo ที่ 
 if (!git(["remote", "get-url", "origin"]).stdout.includes(REPO)) die("origin ของโฟลเดอร์ deploy ไม่ใช่ " + REPO);
 if (git(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim() !== "main") die("โฟลเดอร์ deploy ต้องอยู่กิ่ง main");
 
+// 0) สร้างไฟล์เนื้อหา JSON (content/) จาก data/ ทุกครั้ง — หน้าเว็บโหลดเนื้อหาจากที่นี่ ไม่ใช่จากชีต
+const bc = buildContent();
+console.log(`สร้าง content/ แล้ว: ${bc.nFiles} ไฟล์ · ${(bc.bytes / 1e6).toFixed(2)} MB · rev ${bc.rev}`);
+
 // 1) รายการไฟล์ที่ขึ้น
 const ls = run("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], ROOT);
 if (ls.status) die("อ่านรายการไฟล์จากโฟลเดอร์งานไม่ได้");
 const files = new Set(ls.stdout.split("\0").filter(f => f && !/\.pdf$/i.test(f) && fs.existsSync(path.join(ROOT, f))));
+const walkC = (rel) => { for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) { const r2 = rel + "/" + e.name; e.isDirectory() ? walkC(r2) : files.add(r2); } };
+walkC("content"); // content/ ไม่อยู่ใน git ของโฟลเดอร์งาน (สร้างใหม่ได้) แต่ต้องขึ้นเว็บ
 
 // 2) คัดลอกเฉพาะไฟล์ที่เปลี่ยน + ลบไฟล์ที่ไม่อยู่ในรายการแล้ว
 let copied = 0, removed = 0;
