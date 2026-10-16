@@ -444,3 +444,36 @@ body.light .s-bio{--sc:#15803d;--si:#14532d}body.light .s-phys{--sc:#1d4ed8;--si
 body.light .chip.streak{background:#ffedd5;color:#9a3412}
 body.light .brand{color:var(--ink)}
 #bnav button{font-size:calc(var(--fs,17px)*.74);white-space:nowrap}
+.chip.late{background:var(--badbg);color:var(--badp);min-height:22px;margin-top:2px}
+.asgcard{border-color:var(--acc-line)}
+/* ===== ช่วง 3: รายงานครู ===== */
+.tsub{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px}
+.tsub button{flex:none;min-height:44px;padding:0 14px;border-radius:99px;border:1.5px solid var(--line);background:var(--glass);font-weight:600;color:var(--mute);white-space:nowrap}
+.tsub button.on{background:var(--acc);color:var(--acc-on);border-color:var(--acc)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-top:8px}
+.kpis>div{text-align:center;padding:10px 6px;border-radius:var(--r2);background:var(--psoft)}
+.kpis b{display:block;font:600 1.5em var(--fh);color:var(--pink)}.kpis span{font-size:.82em;color:var(--pmute)}
+.avgrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(60px,1fr) 3.2em;gap:4px 10px;align-items:center;margin:8px 0}
+.avgrow .nm{grid-column:1/-1;font-size:.92em}.avgrow .small{grid-column:1/-1;margin-top:-4px}
+.avgrow .bar{height:12px;border-radius:99px;background:var(--psoft);overflow:hidden}.avgrow .bar i{display:block;height:100%;border-radius:99px}
+.avgrow b{text-align:right}
+.hm4{background:#bbf7d0;color:#14532d}.hm3{background:#d9f99d;color:#365314}.hm2{background:#fde68a;color:#78350f}.hm1{background:#fecaca;color:#7f1d1d}.hm-{background:#e5e7f2;color:#434c70}
+.avgrow .bar i.hm-{background:transparent}
+.lg{display:inline-block;padding:0 8px;border-radius:6px;font-size:.85em;margin:0 2px}
+table.hm{border-collapse:separate;border-spacing:2px;font-size:.82em;min-width:100%}
+table.hm th,table.hm td{padding:6px 7px;text-align:center;border-radius:4px;white-space:nowrap;min-width:34px}
+table.hm th{background:var(--psoft);color:var(--pink);font-weight:600}
+table.hm th.sticky{position:sticky;left:0;z-index:2;text-align:left;min-width:140px;background:var(--psoft)}
+table.hm tr.avg th,table.hm tr.avg td{font-weight:700;border-top:2px solid var(--pline)}
+td.n.hm4,td.n.hm3,td.n.hm2,td.n.hm1{font-weight:700}
+.apool{margin-top:8px;max-height:320px;overflow:auto}.apk{padding:6px 0;border-top:1px solid var(--line)}.apk input{flex:none}
+.onlyprint{display:none}
+tr.off td{opacity:.6}
+@media print{
+  .onlyprint{display:block}.printhead h2{font-size:14pt}
+  .scroll{overflow:visible!important}
+  table.hm{font-size:6.5pt}table.hm th,table.hm td{padding:1px 2px;min-width:0;white-space:normal}table.hm th.sticky{position:static;min-width:90px}
+  .hm4,.hm3,.hm2,.hm1,.hm-,.avgrow .bar i,.avgrow .bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tsub,.seg{display:none!important}
+}
+body.light .hm-{background:#eceffd}

@@ -69,7 +69,7 @@ async function minePage() {
   paint(PR);
   if (!PR) loadProgress().then(pr => { if (VIEW === my) paint(pr); }).catch(() => {});
 }
-const modeText = (mode, std, ind) => mode === 'mock' ? 'ข้อสอบจำลอง' : mode === 'review' ? 'ทบทวนสมุดข้อผิด' : mode === 'custom' ? 'ฝึกเลือกเอง' + (std ? ' · ' + esc(std) + (ind ? ' ' + esc(ind) : '') : '') : mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(std) : 'ฝึก ' + esc(std) + (ind ? ' · ' + esc(ind) : '');
+const modeText = (mode, std, ind) => mode === 'mock' ? 'ข้อสอบจำลอง' : mode === 'asg' ? 'งานที่ครูมอบหมาย' : mode === 'review' ? 'ทบทวนสมุดข้อผิด' : mode === 'custom' ? 'ฝึกเลือกเอง' + (std ? ' · ' + esc(std) + (ind ? ' ' + esc(ind) : '') : '') : mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(std) : 'ฝึก ' + esc(std) + (ind ? ' · ' + esc(ind) : '');
 
 /* ---------- สรุปเนื้อหาก่อนฝึก ---------- */
 async function study(std, ind, hl) {
@@ -146,9 +146,9 @@ const ansDone = () => Q.qs.filter(q => answered(q, Q.ans[q.id])).length;
 function saveExam() {
   if (!Q || Q.secure && false) return;
   const ans = {}, flags = {}; Q.qs.forEach(q => { if (Q.ans[q.id]) ans[qkey(q)] = Q.ans[q.id]; if (Q.flags[q.id]) flags[qkey(q)] = 1; });
-  store.set(EXK, { code: S.code, studentId: S.student.id, level: S.level, mode: Q.mode, std: Q.std || '', ind: Q.ind || '', skip: Q.skip || 0, secure: !!Q.secure, keys: Q.qs.map(qkey), ans, flags, idx: Q.idx, end: Q.end || 0, ts: Date.now() });
+  store.set(EXK, { code: S.code, studentId: S.student.id, level: S.level, mode: Q.mode, std: Q.std || '', ind: Q.ind || '', skip: Q.skip || 0, secure: !!Q.secure, keys: Q.qs.map(qkey), ans, flags, idx: Q.idx, end: Q.end || 0, asg: Q.asg || '', ts: Date.now() });
 }
-async function quiz(mode, std, ind, skip, secure, resume, keys, timed) {
+async function quiz(mode, std, ind, skip, secure, resume, keys, timed, asg) {
   loading('กำลังเตรียมข้อสอบ…');
   const lv = S.level, m = await cj(lv + '/meta.json');
   let qs;
@@ -157,7 +157,7 @@ async function quiz(mode, std, ind, skip, secure, resume, keys, timed) {
   else qs = mode === 'year' ? (await cj(lv + '/q-' + std + '.json')).slice()
     : await questionsFor(mode === 'mock' ? m.mock : (m.pool[ind ? std + '|' + ind : std] || []).slice(skip || 0, (skip || 0) + 20));
   if (!qs.length) { toast(skip ? 'ทำครบทุกข้อในหัวข้อนี้แล้ว' : 'ยังไม่มีข้อสอบในหัวข้อนี้'); return dash(); }
-  Q = { mode, std, ind, skip: skip || 0, qs, secure: !!secure, idx: 0, ans: {}, flags: {}, sols: null, end: timed ? Date.now() + mockMinutes(qs.length) * 60000 : 0 }; // secure = โหมดสอบของครู (ดู README: ไม่โหลดไฟล์เฉลยลงเครื่องนักเรียน ให้ Apps Script ตรวจและตอบเฉพาะถูก/ผิด)
+  Q = { mode, std, ind, skip: skip || 0, qs, secure: !!secure, idx: 0, ans: {}, flags: {}, sols: null, asg: asg || (resume && resume.asg) || '', end: timed ? Date.now() + mockMinutes(qs.length) * 60000 : 0 }; // secure = โหมดสอบของครู (ดู README: ไม่โหลดไฟล์เฉลยลงเครื่องนักเรียน ให้ Apps Script ตรวจและตอบเฉพาะถูก/ผิด)
   if (resume) { qs.forEach(q => { const k = qkey(q); if (resume.ans[k]) Q.ans[q.id] = resume.ans[k]; if (resume.flags[k]) Q.flags[q.id] = 1; }); Q.idx = Math.min(resume.idx || 0, qs.length - 1); Q.end = resume.end || 0; }
   if (!secure) yearsOf(qs).forEach(y => { cj(lv + '/k-' + y + '.json').catch(() => {}); if (mode === 'year') cj(lv + '/s-' + y + '.json', true).catch(() => {}); }); // เตรียมเฉลยไว้ตรวจทันที
   saveExam();
@@ -217,7 +217,7 @@ async function submit() {
   closeSheet();
   loading('กำลังตรวจคำตอบ…');
   const lv = S.level, years = yearsOf(Q.qs), answers = {}; Q.qs.forEach(q => { answers[q.id] = Q.ans[q.id] || ''; });
-  const att = { attemptId: uuid(), code: S.code, studentId: S.student.id, mode: (SRV[Q.mode] || [Q.mode])[0], standard: SRV[Q.mode] ? SRV[Q.mode][1] : Q.std || '', keys: Q.qs.map(qkey), answers: {}, rev: {} };
+  const att = { attemptId: uuid(), code: S.code, studentId: S.student.id, mode: Q.mode === 'asg' ? 'asg:' + Q.asg : (SRV[Q.mode] || [Q.mode])[0], standard: Q.mode === 'asg' ? 'งานมอบหมาย' : SRV[Q.mode] ? SRV[Q.mode][1] : Q.std || '', keys: Q.qs.map(qkey), answers: {}, rev: {} };
   Q.qs.forEach(q => { att.answers[qkey(q)] = answers[q.id]; });
   years.forEach(y => { att.rev[y] = revOf(lv + '/k-' + y + '.json'); });
   let items, r;
@@ -328,7 +328,7 @@ Object.assign(ACT, {
   goto: d => { const el = document.getElementById(d.id); if (!el) return; const fd = el.querySelector('details.fold'); if (fd) { fd.open = true; fitFigures(fd); } const far = Math.abs(el.getBoundingClientRect().top) > 2500; el.scrollIntoView({ behavior: far || matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block: 'start' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); },
   prac: d => quiz('practice', d.std, d.ind || ''),
   next: () => quiz('practice', Q.std, Q.ind, Q.skip + Q.qs.length),
-  resume: async () => { const e = loadExam(); if (!e) return dash(); await quiz(e.mode, e.std, e.ind, e.skip, e.secure, e); },
+  resume: async () => { const e = loadExam(); if (!e) return dash(); await quiz(e.mode, e.std, e.ind, e.skip, e.secure, e, null, false, e.asg); },
   dropexam: () => { if (confirm('ทิ้งข้อสอบที่ทำค้างไว้? คำตอบที่เก็บไว้จะหายไป')) { clearExam(); return dash(); } },
   qnext: () => goQ(Q.idx + 1), qprev: () => goQ(Q.idx - 1),
   qgo: d => goQ(+d.i),

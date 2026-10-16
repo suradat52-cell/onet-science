@@ -77,7 +77,22 @@ function missionsHtml(s, m) {
   const c = row(t.cards >= 10, 'ทบทวนบัตรคำ 10 ใบ', 'วันนี้ทบทวนแล้ว ' + Math.min(t.cards, 10) + '/10 ใบ', '<button class="btn sm" data-a="cards">เริ่ม</button>');
   return q + r + c;
 }
-function asgHtml() { return ''; } // งานที่ครูมอบหมาย (ช่วง 3)
+/* งานที่ครูมอบหมาย (มากับ progress.assignments · สถานะต่องานอยู่ใน progress.asg) */
+const KIND = { practice: 'ฝึกตามชุดข้อ', pre: 'แบบทดสอบก่อนเรียน', post: 'แบบทดสอบหลังเรียน', read: 'อ่านสรุป' };
+function asgHtml(s) {
+  const list = (s.pr && s.pr.assignments) || [], o = s.o, today = dstr(new Date());
+  if (!list.length) return '';
+  const rows = list.map(a => {
+    const st = (s.pr.asg || {})['asg:' + a.id], done = a.kind === 'read' ? !!(o.rd && o.rd[a.id]) : !!st, late = a.due && a.due < today && !done;
+    return '<div class="mis' + (done ? ' done' : '') + '"><span class="mk" aria-hidden="true">' + (done ? ico('check') : '') + '</span><div class="tx"><b>' + esc(a.title) + '</b><span class="mute small">' + KIND[a.kind] + (a.kind === 'read' ? ' · ' + esc(a.std) + (a.ind ? ' ' + esc(a.ind) : '') : ' · ' + a.keys.length + ' ข้อ') + (a.due ? ' · กำหนดส่ง ' + new Date(a.due + 'T00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '') + (st ? ' · ทำแล้ว ' + st.n + ' ครั้ง ดีที่สุด ' + st.best + '%' : '') + '</span>' + (late ? '<span class="chip late">เลยกำหนด</span>' : '') + (a.note ? '<span class="small">' + esc(a.note) + '</span>' : '') + '</div><button class="btn sm' + (done ? ' sec' : '') + '" data-a="asgstart" data-id="' + esc(a.id) + '">' + (a.kind === 'read' ? 'อ่าน' : done ? 'ทำอีกครั้ง' : 'เริ่มทำ') + '</button></div>';
+  }).join('');
+  return '<section class="glass asgcard"><h2>งานจากครู</h2>' + rows + '</section>';
+}
+function asgStart(id) {
+  const a = (IS && IS.pr.assignments || []).find(x => x.id === id); if (!a) return toast('ไม่พบงานนี้');
+  if (a.kind === 'read') { const o = LS(); o.rd = o.rd || {}; o.rd[id] = Date.now(); lsave(o); return study(a.std, a.ind || ''); }
+  return quiz('asg', a.std, a.ind, 0, false, null, a.keys, false, id);
+}
 
 /* ---------- แท็บ ทบทวน: สมุดข้อผิด · บัตรคำ · ฝึกเลือกเอง · ค้นหา ---------- */
 async function reviewPage() {
@@ -214,6 +229,7 @@ Object.assign(ACT, {
   review: () => reviewPage(), search: () => searchPage(), cgo: () => customGo(), nbstart: () => nbStart(),
   cards: () => cardsStart(), cardflip: () => { CD.flip = true; cardShow(); }, cardyes: () => cardRate(true), cardno: () => cardRate(false),
   cardend: () => { CD = null; return reviewPage(); },
+  asgstart: d => asgStart(d.id),
   qone: d => quiz('custom', '', '', 0, false, null, [d.k]),
   mockt: () => quiz('mock', '', '', 0, false, null, null, true),
   fz: d => { const s = SET(); s.fz = +d.v; store.set('set', s); applySet(); document.querySelectorAll('[data-a=fz]').forEach(b => { const on = +b.dataset.v === s.fz; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); },
