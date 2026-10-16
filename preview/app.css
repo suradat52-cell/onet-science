@@ -401,3 +401,46 @@ details.fold:not([open]) .tmeta{display:inline-block;margin-right:8px}
 #offline{position:fixed;left:8px;right:8px;bottom:calc(var(--navh) + 8px + env(safe-area-inset-bottom));z-index:70;padding:8px 12px;border-radius:12px;background:#fef3c7;color:#78350f;font-size:.88rem;text-align:center;border:1px solid #f59e0b}
 #offline[hidden]{display:none}
 @media print{.pvbadge,#offline{display:none!important}}
+
+/* ===== ช่วง 2: แดชบอร์ด ภารกิจ สมุดข้อผิด บัตรคำ ค้นหา จับเวลา เหรียญ ตั้งค่า ===== */
+body{font-size:calc(var(--fs,17px)*var(--fz,1))}
+.pvbadge{top:calc(env(safe-area-inset-top) + 58px);left:auto;right:8px;transform:none;border-radius:99px;padding:0 10px;opacity:.92;font-size:11px}
+#bnav>div{grid-auto-flow:column;grid-auto-columns:1fr;grid-template-columns:none}
+#bnav button{padding:0 2px;font-size:.74em;min-width:0}
+.chip.streak{background:#3b1d0a;color:#fdba74}.chip.streak .ico{width:1.1em;height:1.1em}
+.mis{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.mis:first-of-type{border-top:0}
+.mis .mk{width:30px;height:30px;border-radius:50%;border:2px solid var(--acc-line);display:grid;place-items:center;flex:none;color:var(--acc-on)}
+.mis.done .mk{background:var(--ok);border-color:var(--ok)}.mis .mk .ico{width:1.1em;height:1.1em}
+.mis .tx{flex:1;min-width:0}.mis .tx b{display:block;font-weight:600}.mis .btn{flex:none}
+.nbcard{border-color:var(--acc-line)}
+.nblist{margin-top:8px}.nblist summary{cursor:pointer;color:var(--acc);min-height:44px;display:flex;align-items:center}
+.nblist .it{padding:8px 0;border-top:1px solid var(--line)}
+.chk{display:flex;align-items:center;gap:10px;font-weight:500}.chk input{width:24px;min-height:24px;height:24px;flex:none}
+.empty{text-align:center;padding:18px 8px;border:1.5px dashed var(--line);border-radius:var(--r);color:var(--mute)}.empty p{margin:4px 0}
+.fcard{min-height:230px;display:flex;flex-direction:column;justify-content:center;font-size:1.1em;padding:var(--pad)}
+.fcard .cf{line-height:1.8}.fcard .blank{display:inline-block;min-width:3.2em;border-bottom:3px solid var(--pmute);text-align:center;color:transparent}
+.fcard .hit{background:#fde68a;color:#3b2a00;border-radius:4px;padding:0 4px}
+.tmr{font:700 1.05em var(--fh);font-variant-numeric:tabular-nums;padding:2px 10px;border-radius:99px;background:var(--acc-soft);color:var(--acc);flex:none}
+.tmr.low{background:var(--badbg);color:var(--badp)}
+.sres{margin-top:12px}.sr{display:block;width:100%;text-align:left;padding:10px 12px;margin:0 0 8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--glass);min-height:48px;border-left:4px solid var(--sc,var(--acc))}
+.sr .d{display:block;margin-top:2px}.sr .chip{min-height:22px;font-size:.74em}
+.seg .btn.on{background:var(--acc);color:var(--acc-on)}.seg .btn{flex:1 1 70px}
+.medals{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:10px}
+.mdl{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:10px 6px;border-radius:var(--r2);border:1px solid var(--line);background:var(--glass)}
+.medal{width:40px;height:40px}.medal.off{display:block;border-radius:50%;border:2px dashed var(--line)}
+.std .pc{display:flex;align-items:center;gap:6px}.std .pc .medal{width:26px;height:26px}
+/* ---- โหมดกลางวัน ---- */
+body.light{--bg:#f4f6ff;--bg2:#e6eaff;--glass:#ffffff;--glass2:#eceffd;--line:#c4cbe8;--ink:#171c3a;--mute:#4a5273;--acc-soft:#e8ecff;--okbg:#dcfce7;--sc:#2563eb;--si:#1e3a8a;--ss:#e8f0ff}
+body.light.lv-P6{--acc:#b45309;--acc-on:#fff;--acc-soft:#fef3c7;--acc-line:#d6a95a;--btnsh:0 5px 0 #7c3a06}
+body.light.lv-M3{--acc:#4338ca;--acc-on:#fff;--acc-soft:#e0e7ff;--acc-line:#a5b4fc}
+body.light{background:#f4f6ff}body.light::before{display:none}
+body.light .top{background:#ffffffee;border-bottom-color:var(--line)}
+body.light #bnav>div{background:#fffffff5}
+body.light .glass,body.light .scard,body.light .std,body.light .sr,body.light .mdl{background:#fff;box-shadow:0 1px 3px #1c2a6a14}
+body.light .ring b{background:#fff}
+body.light input,body.light select,body.light textarea{background:#fff;border-color:var(--line)}
+body.light .s-bio{--sc:#15803d;--si:#14532d}body.light .s-phys{--sc:#1d4ed8;--si:#1e3a8a}body.light .s-earth{--sc:#b45309;--si:#78350f}body.light .s-tech{--sc:#7e22ce;--si:#581c87}
+body.light .chip.streak{background:#ffedd5;color:#9a3412}
+body.light .brand{color:var(--ink)}
+#bnav button{font-size:calc(var(--fs,17px)*.74);white-space:nowrap}

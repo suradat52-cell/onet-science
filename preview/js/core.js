@@ -128,6 +128,7 @@ const ICO = {
   back: '<path d="M15 5l-7 7 7 7"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', check: '<path d="M5 12l5 5 9-10"/>',
   play: '<path d="M8 5l11 7-11 7z"/>', grid: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>', refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>', flame: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2-1-3-.5-5 1-8z"/>',
   print: '<path d="M7 9V3h10v6M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><rect x="7" y="14" width="10" height="7"/>', out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>'
 };
 const ico = (n, st) => '<svg class="ico" viewBox="0 0 24 24"' + (st ? ' style="' + st + '"' : '') + ' aria-hidden="true">' + ICO[n] + '</svg>';
@@ -152,7 +153,7 @@ function heroArt() {
 }
 
 /* ---------- เมนูล่าง 4 ปุ่ม (นักเรียน / ครู) ---------- */
-const NAV_S = [['home', 'หน้าแรก', 'home'], ['exams', 'ข้อสอบ', 'exam'], ['learn', 'สรุป', 'book'], ['mine', 'ผลของฉัน', 'chart']];
+const NAV_S = [['home', 'หน้าแรก', 'home'], ['exams', 'ข้อสอบ', 'exam'], ['learn', 'สรุป', 'book'], ['review', 'ทบทวน', 'bulb'], ['mine', 'ผลของฉัน', 'chart']];
 const NAV_T = [['students', 'นักเรียน', 'users'], ['report', 'รายงาน', 'chart'], ['admins', 'แอดมิน', 'shield'], ['more', 'อื่น ๆ', 'list']];
 function setNav(kind, cur) {
   $('#lvb').style.display = kind === 't' ? 'none' : ''; // หน้าครูไม่ผูกกับระดับชั้น ซ่อนป้ายระดับ
