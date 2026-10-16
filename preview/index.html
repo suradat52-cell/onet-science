@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080d24">
+<title>ติว O-NET วิทยาศาสตร์ ป.6 · ม.3 (หน้าทดลอง)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="lv-P6"><div class="pvbadge" role="note" aria-label="นี่คือหน้าทดลอง">หน้าทดลอง</div>
+<header class="top"><div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="7" fill="#fbbf24"/><ellipse cx="16" cy="16" rx="14" ry="5" fill="none" stroke="#a5b4fc" stroke-width="2" transform="rotate(-24 16 16)"/><circle cx="27" cy="9" r="2.4" fill="#4ade80"/></svg><span>ติว O-NET วิทยาศาสตร์</span></div><span class="chip lv" id="lvb">ป.6</span></header>
+<main id="app"></main>
+<nav id="bnav" aria-label="เมนูหลัก"></nav>
+<div id="sheet" class="sheet"></div>
+<div id="printq"></div>
+<div id="msg" role="status"></div>
+<div id="offline" role="status" hidden>ออฟไลน์อยู่ · ทำข้อสอบต่อได้ ระบบจะส่งคะแนนให้เองเมื่อมีเน็ต</div>
+<script>
+/* ====== ตั้งค่า: วาง URL ของ Apps Script Web app (ลงท้ายด้วย /exec) ====== */
+/* PREVIEW/IMG_BASE: tools/build-preview.mjs ตั้งค่าให้ตอนสร้างหน้าทดลอง (เว็บหลักคงเป็น false / images/) */
+const PREVIEW = true, IMG_BASE = '../images/', PWA = true;
+const API_URL = 'https://script.google.com/macros/s/AKfycbzvQmtCTbdk6Tq30iawgw5O-QkjXCjpIZUMkUiZmEKO70CR90sl1zWWfR8B70vn8b5B/exec';
+</script>
+<script src="grade.js"></script>
+<script src="js/core.js"></script>
+<script src="js/exams-list.js"></script>
+<script src="js/rich.js"></script>
+<script src="js/learn.js"></script>
+<script src="js/student.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>
