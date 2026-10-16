@@ -162,7 +162,13 @@ function setNav(kind, cur) {
   app.classList.remove('nonav'); n.classList.add('on');
   n.innerHTML = '<div>' + (kind === 't' ? NAV_T : NAV_S).map(([k, t, i]) => '<button data-a="nav" data-k="' + k + '" data-kind="' + kind + '" class="' + (k === cur ? 'on' : '') + '" aria-label="' + t + '">' + ico(i) + t + '</button>').join('') + '</div>';
 }
-function page(html, kind, cur) { app.innerHTML = html; setNav(kind, cur); }
+/* การเข้าถึง: ผูกป้ายกับช่องกรอกที่อยู่ถัดจากป้าย · ตารางที่เลื่อนได้ต้องโฟกัสด้วยคีย์บอร์ดได้ */
+let LBL = 0;
+function a11yFix(root) {
+  root.querySelectorAll('label:not([for])').forEach(l => { const n = l.nextElementSibling; if (n && /^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName) && !l.querySelector('input,select,textarea')) { if (!n.id) n.id = 'f' + (++LBL); l.setAttribute('for', n.id); } });
+  root.querySelectorAll('.scroll').forEach(s => { s.tabIndex = 0; s.setAttribute('role', 'region'); if (!s.hasAttribute('aria-label')) s.setAttribute('aria-label', 'ตาราง เลื่อนดูได้'); });
+}
+function page(html, kind, cur) { app.innerHTML = html; a11yFix(app); setNav(kind, cur); }
 const bar = html => '<div class="bar"><div>' + html + '</div></div>';
 
 /* ---------- สถานะข้อสอบที่ทำค้างไว้: ปิดเว็บกลางคันแล้วเปิดใหม่ ทำต่อได้ ---------- */

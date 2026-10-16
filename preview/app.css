@@ -477,3 +477,12 @@ tr.off td{opacity:.6}
   .tsub,.seg{display:none!important}
 }
 body.light .hm-{background:#eceffd}
+
+/* ===== ช่วง 4: การเข้าถึง ===== */
+button.figtip{display:block;width:100%;min-height:44px;text-align:left;background:none;padding:6px 0;font-size:.78em;color:var(--pmute);text-decoration:underline;cursor:zoom-in}
+.paper .empty{color:var(--pmute);border-color:var(--pline)}
+.scroll:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+body.light .bar>div{background:#fffffff7}
+body.light .ind{background:#ffffffcc}body.light .ind summary,body.light .ind .it b{color:var(--ink)}
+body.light #savestat.ok,body.light .mute.ok{color:#166534}body.light #savestat.bad,body.light .mute.bad{color:#991b1b}
+body.light .fcard .blank{border-color:#434c70}

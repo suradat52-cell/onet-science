@@ -83,7 +83,7 @@ function rich(t, ctx) {
       if (ex && ex.length) h += '<p class="seen"><b class="t">ข้อสอบจริงที่เคยออก</b> ' + ex.map(esc).join(' · ') + '</p>';
     }
     else if (l.startsWith('= ')) h += '<div class="eq">' + l.slice(2).split(/\s{2,}/).map(x => '<span class="e">' + inl(x) + '</span>').join('') + '</div>';
-    else if ((m = l.match(/^\[\[fig:([\w-]+)(?:\|(.*))?\]\]$/)) && figOf(m[1])) h += '<figure data-fig="1" tabindex="0" role="button" aria-label="แตะเพื่อขยายภาพเต็มจอ">' + figOf(m[1]) + '<div class="figtip noprint">แตะภาพเพื่อขยายเต็มจอ · หมุนจอแนวนอนได้</div>' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
+    else if ((m = l.match(/^\[\[fig:([\w-]+)(?:\|(.*))?\]\]$/)) && figOf(m[1])) h += '<figure data-fig="1">' + figOf(m[1]) + '<button type="button" class="figtip noprint">แตะภาพเพื่อขยายเต็มจอ · หมุนจอแนวนอนได้</button>' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
     else if ((m = l.match(/^\[\[img:(https:\/\/[^|\]\s]+)(?:\|(.*))?\]\]$/))) h += '<figure><img src="' + esc(m[1]) + '" alt="' + esc(m[2] || 'ภาพประกอบ') + '">' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
     else h += '<p>' + inl(l) + '</p>';
   });
