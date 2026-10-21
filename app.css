@@ -552,3 +552,11 @@ body.light .fcard{box-shadow:0 2px 10px #1c2a6a22}
 /* ---- คะแนนรายคน ---- */
 .linkbtn{background:none;border:0;padding:6px 0;min-height:44px;color:#1d4ed8;text-decoration:underline;font:inherit;font-weight:600;text-align:left;cursor:pointer}
 table.hm.sc th.sticky{min-width:170px}
+
+/* ---- รูปข้อสอบเต็มจอ ---- */
+.paper img.qimg{cursor:zoom-in}
+#figview.imgv{background:#0b0f24}
+#figview.imgv .fv-bar{flex-wrap:wrap}
+#figview .iv{display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;background:#0b0f24;padding:0}
+#figview .iv img{max-width:100%;max-height:100%;width:auto;height:auto;background:#fff;transform-origin:center center;user-select:none;-webkit-user-drag:none;will-change:transform}
+#figview .zb{min-width:44px;font-size:1.2em}

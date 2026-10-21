@@ -142,3 +142,31 @@ function openFig(fig) {
 }
 function closeFig() { const v = document.getElementById('figview'); if (v) v.remove(); document.body.classList.remove('fv-open'); window.removeEventListener('resize', window.__fvfit || (() => {})); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeFig(); });
+
+/* ---------- รูปข้อสอบเต็มจอ: แตะรูปเพื่อเปิด · ซูมสองนิ้ว (หรือปุ่ม + − / ล้อเมาส์) · ลากเลื่อนเมื่อซูม · แตะครั้งเดียวเพื่อปิด ---------- */
+function openImg(img) {
+  closeFig();
+  const v = document.createElement('div'); v.id = 'figview'; v.className = 'imgv'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'รูปข้อสอบเต็มจอ');
+  v.innerHTML = '<div class="fv-bar"><button class="btn sm" data-a="figclose">ปิด</button><button class="btn sm zb" data-z="1.5" aria-label="ขยาย">+</button><button class="btn sm zb" data-z="0.667" aria-label="ย่อ">−</button><span class="small">ซูมสองนิ้วได้ · แตะรูปเพื่อปิด</span></div><div class="fv-box iv"><img alt="' + esc(img.alt || 'รูปข้อสอบ') + '" src="' + esc(img.currentSrc || img.src) + '" draggable="false"></div>';
+  document.body.appendChild(v); document.body.classList.add('fv-open');
+  const box = v.querySelector('.iv'), im = box.querySelector('img'), P = new Map();
+  let tapOk = false, sc = 1, tx = 0, ty = 0, start = null, moved = false, multi = false, pinch = null;
+  const clamp = () => { sc = Math.min(6, Math.max(1, sc)); if (sc === 1) { tx = ty = 0; } const mx = (im.clientWidth * (sc - 1)) / 2, my = (im.clientHeight * (sc - 1)) / 2; tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty)); };
+  const draw = () => { clamp(); im.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + sc + ')'; v.dataset.scale = sc.toFixed(2); };
+  const zoomAt = (f, cx, cy) => { const r = box.getBoundingClientRect(), ox = cx - (r.left + r.width / 2) - tx, oy = cy - (r.top + r.height / 2) - ty, n = Math.min(6, Math.max(1, sc * f)), k = n / sc; tx -= ox * (k - 1); ty -= oy * (k - 1); sc = n; draw(); };
+  box.addEventListener('pointerdown', e => { if (e.isPrimary) { P.clear(); pinch = null; } box.setPointerCapture(e.pointerId); P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size === 1) { start = { x: e.clientX, y: e.clientY, t: Date.now(), tx, ty }; moved = false; multi = false; } if (P.size === 2) { multi = true; const [a, b] = [...P.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), sc }; } });
+  box.addEventListener('pointermove', e => {
+    if (!P.has(e.pointerId)) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (P.size === 2 && pinch) { const [a, b] = [...P.values()], d = Math.hypot(a.x - b.x, a.y - b.y); zoomAt((pinch.sc * d / pinch.d) / sc, (a.x + b.x) / 2, (a.y + b.y) / 2); moved = true; return; }
+    if (P.size === 1 && start) { const dx = e.clientX - start.x, dy = e.clientY - start.y; if (Math.abs(dx) + Math.abs(dy) > 8) moved = true; if (sc > 1) { tx = start.tx + dx; ty = start.ty + dy; draw(); } }
+  });
+  const up = e => { P.delete(e.pointerId); if (P.size < 2) pinch = null; if (P.size === 0) { tapOk = !!(start && !moved && !multi && Date.now() - start.t < 400); start = null; } else if (P.size === 1) { const [p] = [...P.values()]; start = { x: p.x, y: p.y, t: 0, tx, ty }; } };
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+  box.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); if (tapOk) closeFig(); tapOk = false; }); // ปิดตอน click (หลังยกนิ้ว) กันคลิกทะลุไปเปิดรูปซ้ำ
+  box.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
+  v.querySelectorAll('.zb').forEach(b => b.addEventListener('click', () => { const r = box.getBoundingClientRect(); zoomAt(+b.dataset.z, r.left + r.width / 2, r.top + r.height / 2); }));
+  v.querySelector('[data-a=figclose]').focus();
+  draw();
+}
+document.addEventListener('click', e => { const im = e.target.closest && e.target.closest('img.qimg'); if (im && !im.closest('#figview')) { e.preventDefault(); openImg(im); } });
+document.addEventListener('keydown', e => { const im = e.target.closest && e.target.closest('img.qimg'); if (im && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openImg(im); } });

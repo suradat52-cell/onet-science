@@ -116,7 +116,7 @@ function qHead(q, i, lazy, num) {
   const src = imgSrc(q.imageUrl), k = strandOf(q.standard);
   return '<div class="tags"><span class="tag y">O-NET ปีการศึกษา ' + esc(q.examYear) + (q.itemNo ? ' ข้อ ' + esc(q.itemNo) : '') + '</span><span class="tag" style="background:var(--pc);color:var(--pi)">' + esc(q.standard) + (q.indicator ? ' · ' + esc(q.indicator) : '') + '</span>' +
     (q.offPlan ? '<span class="tag off">ไม่อยู่ในผัง ' + esc(q.offPlan) + '</span>' : '') + (q.outCurr ? '<span class="tag out">นอกหลักสูตรปัจจุบัน</span>' : '') + '</div><div class="stem"><b>' + (num || i + 1) + '.</b> ' + fmt(q.stem) + '</div>' +
-    (src ? '<img class="qimg" src="' + esc(src) + '" alt="ภาพประกอบข้อ ' + (i + 1) + '"' + (lazy ? ' loading="lazy" decoding="async"' : '') + '>' : '');
+    (src ? '<img class="qimg" tabindex="0" role="button" title="แตะเพื่อขยายเต็มจอ" src="' + esc(src) + '" alt="ภาพประกอบข้อ ' + (i + 1) + ' (แตะเพื่อขยาย)"' + (lazy ? ' loading="lazy" decoding="async"' : '') + '>' : '');
 }
 // ช่องตอบของข้อที่กำลังทำ (ทีละข้อ) — ชื่อ input: a (ปรนัย/เติมคำ) · a__k (ข้อเชิงซ้อน/เรียงลำดับ ข้อย่อยที่ k)
 function qInput(q, i) {
