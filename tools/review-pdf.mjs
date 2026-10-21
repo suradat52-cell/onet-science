@@ -13,7 +13,7 @@ import { parseSolutions } from "./solutions.mjs";
 const [, , LVA, YA, ...rest] = process.argv;
 if (!/^(P6|M3)$/.test(LVA || "") || !/^\d{4}$/.test(YA || "")) { console.log("ใช้: node tools/review-pdf.mjs P6|M3 ปี [--extra M3-2564/28,...]"); process.exit(1); }
 const extraIds = rest[0] === "--extra" && rest[1] ? rest[1].split(",").map(s => s.trim()).filter(Boolean) : [];
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(p => fs.existsSync(p));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(p => fs.existsSync(p));
 
 /* ---- ใช้ esc / inl / rich จาก index.html โดยตรง ---- */
 const html0 = fs.readFileSync(at("index.html"), "utf8");

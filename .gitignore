@@ -31,3 +31,7 @@ content/
 .clasp.json
 .clasprc.json
 .clasp-pull/
+review/proto/
+
+# ภาพหน้าจอและรายงานก่อน/หลัง (สร้างใหม่ได้ด้วย tools/upgrade-shots.mjs + tools/make-upgrade-pdf.mjs)
+review/upgrade/

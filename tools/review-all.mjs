@@ -10,7 +10,7 @@ import puppeteer from "puppeteer-core";
 import { at, imgsOf, IMG_NAME, BLOCK_REAL_API } from "./lib.mjs";
 import { parseSolutions } from "./solutions.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(p => fs.existsSync(p));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(p => fs.existsSync(p));
 
 /* ---- ใช้ esc / inl / rich จาก index.html โดยตรง ---- */
 const html0 = fs.readFileSync(at("index.html"), "utf8");

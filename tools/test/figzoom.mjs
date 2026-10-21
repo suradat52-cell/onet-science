@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import { TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8"));
 let bad = 0; const t = (n, ok, i = "") => { if (!ok) bad++; console.log((ok ? "PASS " : "FAIL ") + n + (ok ? "" : "  " + i)); };
 const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API });

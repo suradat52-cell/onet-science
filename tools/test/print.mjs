@@ -7,7 +7,7 @@ import fs from "fs";
 import path from "path";
 import { TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8"));
 const BASE = `http://localhost:${cfg.port}/`, OUT = path.join(TOOLS, ".cache", "print"); fs.mkdirSync(OUT, { recursive: true });
 let bad = 0;

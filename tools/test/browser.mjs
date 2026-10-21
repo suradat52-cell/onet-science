@@ -8,8 +8,8 @@ import fs from "fs";
 import path from "path";
 import { at, TOOLS, POINTS, expectedScore, imgsOf, alts, isRight, BLOCK_REAL_API } from "../lib.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
-  "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 // ทดสอบกับเว็บจริง: ONET_LIVE_BASE=https://…/ ONET_ROOMS="P6=รหัส,M3=รหัส" (ห้องของโรงเรียนทดสอบ) · ONET_VIEWPORT=390x844 = จอมือถือ
 const LIVE = process.env.ONET_LIVE_BASE;
 if (LIVE && process.env.ONET_ALLOW_LIVE !== "yes") { console.error("ปฏิเสธ: ทดสอบเว็บจริงยิง Apps Script จริงและเขียนข้อมูลลงชีต — ต้องตั้ง ONET_ALLOW_LIVE=yes เมื่อเจ้าของระบบสั่งเท่านั้น"); process.exit(2); }

@@ -71,7 +71,7 @@ for (const lv of ["P6", "M3"]) rooms[lv] = must(call({ action: "roomCodes", toke
 fs.writeFileSync(path.join(TOOLS, ".cache", "admin.json"), JSON.stringify({ username: "admin", password, port: PORT, schoolId: sid, rooms }));
 
 /* ---------- http ---------- */
-const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".json": "application/json", ".css": "text/css" };
+const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".json": "application/json", ".css": "text/css", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml" };
 http.createServer((req, res) => {
   if (req.url.startsWith("/__fail")) { globalThis.__FETCH_FAIL = /on=1/.test(req.url); res.writeHead(200); return res.end("fetchfail=" + globalThis.__FETCH_FAIL); } // ทดสอบ: ให้ UrlFetch (โหลดเฉลย) ล้มเหลว
   if (req.method === "POST" && req.url === "/api") {
@@ -81,7 +81,7 @@ http.createServer((req, res) => {
   }
   const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "") || "index.html";
   const file = path.join(ROOT, rel);
-  if (!file.startsWith(ROOT) || !/^(index\.html|grade\.js|app\.css|js\/|images\/|figs\/|content\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
+  if (!file.startsWith(ROOT) || !/^(index\.html|grade\.js|app\.css|sw\.js|manifest\.webmanifest|icons\/|js\/|images\/|figs\/|content\/)/.test(rel.replace(/\\/g, "/")) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
   let body = fs.readFileSync(file);
   if (rel === "index.html") { body = body.toString("utf8").replace(/const API_URL = '[^']*';/, "const API_URL = '/api';"); if (/script\.google\.com/.test(body)) { res.writeHead(500); return res.end("ปฏิเสธ: index.html ยังมี URL Apps Script จริง (กันชุดทดสอบยิงระบบจริง)"); } }
   res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });

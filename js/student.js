@@ -32,37 +32,15 @@ async function home() {
 const resumeCard = () => {
   const e = loadExam(); if (!e) return '';
   const done = Object.values(e.ans || {}).filter(v => v && String(v).replace(/,/g, '')).length;
-  const t = e.mode === 'year' ? 'ข้อสอบปีการศึกษา ' + e.std : e.mode === 'mock' ? 'ข้อสอบจำลอง' : 'ฝึก ' + e.std + (e.ind ? ' · ' + e.ind : '');
+  const t = modeText(e.mode, e.std, e.ind);
   return '<section class="glass" style="border-color:var(--acc-line)"><h2>มีข้อสอบที่ทำค้างไว้</h2><p class="mute">' + esc(t) + ' · ตอบแล้ว ' + done + ' จาก ' + e.keys.length + ' ข้อ (คำตอบถูกเก็บไว้ในเครื่องนี้)</p><div class="row"><button class="btn" data-a="resume">ทำต่อ</button><button class="btn sec" data-a="dropexam">ทิ้งชุดนี้</button></div></section>';
 };
-async function dash() {
-  loading();
-  const my = VIEW, lv = S.level, m = await cj(lv + '/meta.json');
-  const years = Object.keys(m.bankYears).sort().reverse(), bank = m.standards.reduce((n, x) => n + x.bank, 0);
-  const paint = pr => {
-    const agg = {}; Object.keys(STRAND_NAME).forEach(k => { agg[k] = { done: 0, correct: 0, n: 0 }; });
-    let weak = null;
-    m.standards.forEach(x => { const k = strandOf(x.standard), d = pr && pr.done[x.standard]; agg[k].n++; if (d) { agg[k].done += d.done; agg[k].correct += d.correct; if (d.done >= 3 && (!weak || d.correct / d.done < weak.p)) weak = { x, p: d.correct / d.done, d }; } });
-    const rec = weak ? weak.x : m.standards[0];
-    page('<section class="glass hero">' + heroArt() + '<div class="tx"><div><span class="chip lv">' + LV[lv] + '</span></div><h1>สวัสดี ' + esc(S.student.name) + '</h1>' +
-      '<p class="mute small">คลังข้อสอบจริง ' + bank + ' ข้อ' + (years.length ? ' · ปีการศึกษา ' + esc(years[years.length - 1]) + '–' + esc(years[0]) : '') + '</p><div class="sp"></div>' +
-      '<button class="btn" data-a="mock"' + (bank ? '' : ' disabled') + '>' + ico('play') + 'ทำข้อสอบจำลองตาม Test Blueprint</button><div class="sp"></div>' +
-      '<div class="row"><button class="btn sec" data-a="nav" data-k="exams" data-kind="s">ข้อสอบรายปี</button><button class="btn ghost" data-a="home">เปลี่ยนผู้ใช้</button></div></div></section>' +
-      resumeCard() +
-      '<h2 style="margin:8px 2px 10px">ความคืบหน้าตามสาระ</h2><div class="sgrid">' + Object.keys(STRAND_NAME).map(k => { const a = agg[k], p = a.done ? Math.round(a.correct * 100 / a.done) : 0;
-        return '<button class="scard s-' + k + '" data-a="nav" data-k="learn" data-kind="s"><div class="row"><div class="ring" style="--p:' + p + '"><b>' + (a.done ? p + '%' : '–') + '</b></div><div><div class="t">' + ico(k, 'width:1.1em;height:1.1em;vertical-align:-3px') + ' ' + STRAND_NAME[k] + '</div><div class="mute small">' + (a.done ? 'ถูก ' + a.correct + '/' + a.done + ' ข้อ' : a.n + ' มาตรฐาน') + '</div></div></div></button>'; }).join('') + '</div>' +
-      '<section class="glass s-' + strandOf(rec.standard) + '"><h2>แนะนำให้ฝึกต่อ</h2><p class="mute">' + esc(stdName(rec)) + (weak ? ' · ทำถูก ' + Math.round(weak.p * 100) + '% ลองทบทวนอีกครั้ง' : ' · เริ่มจากมาตรฐานแรกในผัง') + '</p><button class="btn sec" data-a="study" data-std="' + esc(rec.standard) + '">สรุป + ฝึก ' + esc(rec.standard) + '</button></section>', 's', 'home');
-  };
-  paint(null);
-  loadProgress().then(pr => { if (VIEW === my) paint(pr); }).catch(() => {});
-}
-
 /* ---------- แท็บ ข้อสอบ ---------- */
 async function examsPage() {
   loading();
   const lv = S.level, m = await cj(lv + '/meta.json'), years = Object.keys(m.bankYears).sort().reverse(), bank = m.standards.reduce((n, x) => n + x.bank, 0);
   page('<h1 style="margin:4px 2px 12px">ข้อสอบ</h1>' + resumeCard() +
-    '<section class="glass"><h2>ข้อสอบจำลองตาม Test Blueprint</h2><p class="mute">เลือกข้อตามจำนวนของแต่ละมาตรฐานในผังข้อสอบ ปีการศึกษา ' + esc(m.year) + ' · ' + m.mock.length + ' ข้อ</p><button class="btn" data-a="mock"' + (bank ? '' : ' disabled') + '>เริ่มข้อสอบจำลอง</button></section>' +
+    '<section class="glass"><h2>ข้อสอบจำลองตาม Test Blueprint</h2><p class="mute">เลือกข้อตามจำนวนของแต่ละมาตรฐานในผังข้อสอบ ปีการศึกษา ' + esc(m.year) + ' · ' + m.mock.length + ' ข้อ</p><div class="row"><button class="btn" data-a="mockt"' + (bank ? '' : ' disabled') + '>เริ่มแบบจับเวลา (' + mockMinutes(m.mock.length) + ' นาที)</button><button class="btn sec" data-a="mock"' + (bank ? '' : ' disabled') + '>เริ่มแบบไม่จับเวลา</button></div></section>' +
     (years.length ? '<h2 style="margin:8px 2px 10px">ข้อสอบจริงรายปี</h2><div class="yeargrid">' + years.map(y => '<button class="yearbtn" data-a="year" data-y="' + esc(y) + '"><b>ปีการศึกษา ' + esc(y) + '</b><span>' + m.bankYears[y] + ' ข้อ · ทำทั้งฉบับ</span></button>').join('') + '</div>' : '') +
     '<p class="mute small" style="margin-top:14px">อยากฝึกเป็นรายมาตรฐาน/ตัวชี้วัด ไปที่แท็บ "สรุป"</p>', 's', 'exams');
 }
@@ -74,11 +52,11 @@ async function learnPage() {
   const paint = pr => page('<h1 style="margin:4px 2px 4px">สรุปเนื้อหา + ฝึก</h1><p class="mute small" style="margin:0 2px 12px">ตาม Test Blueprint ปีการศึกษา ' + esc(m.year) + ' · ตัวเลข % คือที่ทำถูกของเธอ</p>' +
     m.standards.map(x => {
       const k = strandOf(x.standard), d = (pr && pr.done[x.standard]) || { done: 0, correct: 0 }, p = d.done ? Math.round(d.correct * 100 / d.done) : 0;
-      return '<button class="std s-' + k + '" data-a="study" data-std="' + esc(x.standard) + '"><span class="pl">' + ico(k) + '</span><span class="tx"><b>' + esc(stdName(x)) + '</b><span class="mute small">' + STRAND_NAME[k] + ' · ในคลัง ' + x.bank + ' ข้อ · ออกสอบ ' + (x.items || '–') + ' ข้อ</span><div class="prog"><i style="width:' + p + '%"></i></div></span><span class="pc">' + (d.done ? p + '%' : '–') + '</span></button>' +
-        (x.ind.length ? '<details class="ind s-' + k + '"><summary>ตัวชี้วัด ' + x.ind.length + ' ข้อ</summary>' + x.ind.map(i => '<div class="it"><div class="tx"><b>' + esc(i.indicator) + '</b>' + (i.offPlan ? ' <span class="chip" style="min-height:22px;background:var(--badbg);color:var(--badp)">ไม่อยู่ในผัง ' + esc(i.offPlan) + '</span>' : '') + ' <span class="mute">' + esc(i.description) + '</span><br><span class="mute small">ในคลัง ' + i.bank + ' ข้อ · ออกสอบ ' + (i.items || '–') + ' ข้อ</span></div><button class="btn sm sec" data-a="study" data-std="' + esc(x.standard) + '" data-ind="' + esc(i.indicator) + '">สรุป + ฝึก</button></div>').join('') + '</details>' : '');
+      return '<button class="std s-' + k + '" data-a="study" data-std="' + esc(x.standard) + '"><span class="pl">' + ico(k) + '</span><span class="tx"><b>' + esc(stdName(x)) + '</b><span class="mute small">' + STRAND_NAME[k] + ' · ในคลัง ' + x.bank + ' ข้อ · ออกสอบ ' + (x.items || '–') + ' ข้อ</span><div class="prog"><i style="width:' + p + '%"></i></div></span><span class="pc">' + medalSvg(medalOf(d)) + (d.done ? p + '%' : '–') + '</span></button>' +
+        (x.ind.length ? '<details class="ind s-' + k + '"><summary>ตัวชี้วัด ' + x.ind.length + ' ข้อ</summary>' + x.ind.map(i => '<div class="it"><div class="tx"><b>' + esc(i.indicator) + '</b>' + (i.offPlan ? ' <span class="chip" style="min-height:22px;background:var(--badbg);color:var(--badp)">ไม่อยู่ในผัง ' + esc(i.offPlan) + '</span>' : '') + ' <span class="mute">' + esc(i.description) + '</span><br><span class="mute small">ในคลัง ' + i.bank + ' ข้อ · ออกสอบ ' + (i.items || '–') + ' ข้อ' + indPct(x.standard, i.indicator) + '</span></div><button class="btn sm sec" data-a="study" data-std="' + esc(x.standard) + '" data-ind="' + esc(i.indicator) + '">สรุป + ฝึก</button></div>').join('') + '</details>' : '');
     }).join(''), 's', 'learn');
   paint(null);
-  loadProgress().then(pr => { if (VIEW === my) paint(pr); }).catch(() => {});
+  getStats().then(s => { if (VIEW === my) paint(s.pr); }).catch(() => {});
 }
 
 /* ---------- แท็บ ผลของฉัน ---------- */
@@ -87,15 +65,15 @@ async function minePage() {
   const my = VIEW, last = store.get('onet_last');
   const paint = pr => page('<h1 style="margin:4px 2px 12px">ผลของฉัน</h1>' +
     (last && last.studentId === S.student.id ? '<section class="glass"><h2>ผลล่าสุด</h2><p class="mute">' + modeText(last.mode, last.std, last.ind) + ' · ' + esc(new Date(last.ts).toLocaleString('th-TH')) + '</p><button class="btn" data-a="showlast">ดูผลและเฉลยอีกครั้ง</button></section>' : '') +
-    '<section class="paper"><h2>ประวัติล่าสุด</h2>' + (pr ? (pr.history.length ? pr.history.map(h => '<div class="hrow"><div><b>' + (h.mode === 'mock' ? 'ข้อสอบจำลอง' : h.mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(h.standard) : 'ฝึก ' + esc(h.standard)) + '</b><span class="when">' + esc(new Date(h.ts).toLocaleString('th-TH')) + '</span></div><div class="sc">' + (h.maxScore && h.mode !== 'year' ? esc(h.score) + '/' + esc(h.maxScore) + ' คะแนน' : h.maxScore ? pct(h.score, h.maxScore) + '<br><span class="when">' + esc(h.correct) + '/' + esc(h.total) + ' ข้อ</span>' : esc(h.correct) + '/' + esc(h.total) + ' ข้อ') + '</div></div>').join('') : '<p class="mute">ยังไม่เคยทำข้อสอบ ลองเริ่มจากข้อสอบจำลองดูนะ</p>') : '<p class="mute">กำลังโหลดประวัติ…</p>') + '</section>', 's', 'mine');
+    '<section class="paper"><h2>ประวัติล่าสุด</h2>' + (pr ? (pr.history.length ? pr.history.map(h => '<div class="hrow"><div><b>' + (h.mode === 'mock' ? 'ข้อสอบจำลอง' : h.mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(h.standard) : h.standard === 'ทบทวน' ? 'ทบทวนสมุดข้อผิด' : h.standard === 'เลือกเอง' ? 'ฝึกเลือกเอง' : /^asg:/.test(h.mode) ? 'งานที่ครูมอบหมาย' : 'ฝึก ' + esc(h.standard)) + '</b><span class="when">' + esc(new Date(h.ts).toLocaleString('th-TH')) + '</span></div><div class="sc">' + (h.maxScore && h.mode !== 'year' ? esc(h.score) + '/' + esc(h.maxScore) + ' คะแนน' : h.maxScore ? pct(h.score, h.maxScore) + '<br><span class="when">' + esc(h.correct) + '/' + esc(h.total) + ' ข้อ</span>' : esc(h.correct) + '/' + esc(h.total) + ' ข้อ') + '</div></div>').join('') : '<div class="empty"><p><b>ยังไม่เคยทำข้อสอบ</b></p><p class="mute small">ลองเริ่มจากข้อสอบจำลองดูนะ</p></div>') : '<p class="mute">กำลังโหลดประวัติ…</p>') + '</section>' + (pr ? medalsHtml(pr) : '') + settingsHtml(), 's', 'mine');
   paint(PR);
   if (!PR) loadProgress().then(pr => { if (VIEW === my) paint(pr); }).catch(() => {});
 }
-const modeText = (mode, std, ind) => mode === 'mock' ? 'ข้อสอบจำลอง' : mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(std) : 'ฝึก ' + esc(std) + (ind ? ' · ' + esc(ind) : '');
+const modeText = (mode, std, ind) => mode === 'mock' ? 'ข้อสอบจำลอง' : mode === 'asg' ? 'งานที่ครูมอบหมาย' : mode === 'review' ? 'ทบทวนสมุดข้อผิด' : mode === 'custom' ? 'ฝึกเลือกเอง' + (std ? ' · ' + esc(std) + (ind ? ' ' + esc(ind) : '') : '') : mode === 'year' ? 'ข้อสอบปีการศึกษา ' + esc(std) : 'ฝึก ' + esc(std) + (ind ? ' · ' + esc(ind) : '');
 
 /* ---------- สรุปเนื้อหาก่อนฝึก ---------- */
 async function study(std, ind, hl) {
-  loading();
+  loading(); logDay('read');
   const m = await cj(S.level + '/meta.json'), sf = await cj(S.level + '/sum-' + std.replace(/^ว\s*/, '').trim() + '.json', true);
   const si = m.standards.find(x => x.standard === std), offOf = k => ((si && si.ind.find(i => i.indicator === k)) || {}).offPlan || '';
   let bank = 0;
@@ -103,12 +81,16 @@ async function study(std, ind, hl) {
     const ys = m.asked[std][k]; Object.keys(ys).forEach(y => { bank += ys[y]; });
     return { indicator: k, offPlan: offOf(k), years: Object.keys(ys).sort().reverse().map(y => ({ y, n: ys[y] })) };
   });
+  const cnt = k => Object.values(((m.asked || {})[std] || {})[k] || {}).reduce((a, b) => a + b, 0);
   const r = { notes: (sf || []).filter(x => x.content && (!ind ? true : (x.indicator ? x.indicator === ind : false))), bank, asked };
   await loadFigs(S.level);
   const acts = '<div class="row col noprint">' + (r.bank ? '<button class="btn" data-a="prac" data-std="' + esc(std) + '" data-ind="' + esc(ind) + '">' + ico('play') + 'เริ่มฝึกข้อสอบ ' + r.bank + ' ข้อ</button>' : '') + '<button class="btn sec" data-a="pdf">' + ico('print') + 'ดาวน์โหลดสรุป PDF</button></div>';
   page('<div class="examtop"><button class="xbtn" data-a="nav" data-k="learn" data-kind="s" aria-label="กลับ">' + ico('back') + '</button><div class="grow"><b>สรุปเนื้อหา ' + esc(std) + (ind ? ' · ' + esc(ind) : '') + '</b><span class="mute small">' + esc(SHORT[std] || '') + ' · ' + LV[S.level] + '</span></div></div>' + acts + '<div class="sp"></div>' +
-    '<article class="paper s-' + strandOf(std) + '"><h2>สรุปเนื้อหา ' + esc(std) + (ind ? ' · ' + esc(ind) : '') + ' <span class="tag">' + LV[S.level] + '</span></h2>' +
-    (r.notes.length ? r.notes.map(n => (n.indicator ? '' : '<div class="sheet1">') + '<h3>' + (n.indicator ? '<span class="tag">' + esc(n.indicator) + '</span>' : '') + esc(n.title) + '</h3><div class="rich">' + rich(n.content) + '</div>' + (n.indicator ? '' : '</div>')).join('') : '<p class="mute">ยังไม่มีสรุปของหัวข้อนี้</p>') +
+    '<article class="paper sum s-' + strandOf(std) + '"><h2>สรุปเนื้อหา ' + esc(std) + (ind ? ' · ' + esc(ind) : '') + ' <span class="tag">' + LV[S.level] + '</span></h2>' +
+    (r.notes.length ? (ind ? '' : mindMap(std, SHORT[std] || '', r.notes, cnt)) + r.notes.map((n, i) => { const p = titleParts(n.title), c = n.indicator ? cnt(n.indicator) : 0; const head = '<h3 class="th">' + (n.indicator ? '<span class="tag">' + esc(n.indicator) + '</span>' : '') + esc(p.name) + '</h3>', meta = n.indicator ? '<p class="tmeta">' + (c ? '<span class="chip y">ออกสอบจริง ' + c + ' ข้อ</span>' : '<span class="chip never">ยังไม่เคยออก</span>') + '</p>' : '', body = '<div class="rich">' + rich(n.content, { pre: 's' + i, exams: n.x }) + '</div>';
+      // หัวข้อที่ยังไม่เคยออก (กลุ่ม ค) พับไว้บนเว็บ · ตอนพิมพ์ PDF เปิดครบ (prepPrintPage)
+      if (n.indicator && !c && !ind) return '<section class="topic" id="s' + i + '"><details class="fold"><summary>' + head + meta + '<span class="fold-hint noprint">แตะเพื่ออ่าน</span></summary>' + body + '</details></section>';
+      return '<section class="topic' + (n.indicator ? '' : ' sheet1') + '" id="s' + i + '">' + head + meta + body + '</section>'; }).join('') : '<p class="mute">ยังไม่มีสรุปของหัวข้อนี้</p>') +
     '<h3>ข้อสอบจริงที่เคยออกในหัวข้อนี้</h3>' +
     (r.asked.length ? '<div class="scroll"><table><tr><th>ตัวชี้วัด</th><th>ปีการศึกษาที่ออก (จำนวนข้อ)</th></tr>' + r.asked.map(a => '<tr><td>' + esc(a.indicator) + (a.offPlan ? ' <span class="tag off">ไม่อยู่ในผัง ' + esc(a.offPlan) + '</span>' : '') + '</td><td>' + a.years.map(y => esc(y.y) + ' (' + y.n + ')').join(' · ') + '</td></tr>').join('') + '</table></div>' : '<p class="mute">ยังไม่มีข้อสอบจริงในหัวข้อนี้</p>') +
     '</article>' + acts, 's', 'learn');
@@ -122,7 +104,7 @@ async function study(std, ind, hl) {
 const fmt = s => esc(s).replace(/__(.+?)__/g, '<u>$1</u>');
 const plain = s => String(s == null ? '' : s).replace(/__/g, '');
 // ลิงก์รูป: https://… ใช้ตามนั้น · ชื่อไฟล์ (เช่น P6-2568-07.webp) แสดงจากโฟลเดอร์ images/ ของเว็บ
-const imgSrc = u => { u = String(u || '').trim(); return /^https:\/\//.test(u) ? u : /^[\w.-]+\.(png|jpe?g|gif|webp|svg)$/i.test(u) ? 'images/' + u : ''; };
+const imgSrc = u => { u = String(u || '').trim(); return /^https:\/\//.test(u) ? u : /^[\w.-]+\.(png|jpe?g|gif|webp|svg)$/i.test(u) ? (typeof IMG_BASE !== 'undefined' ? IMG_BASE : 'images/') + u : ''; };
 // ข้อความย่อยที่เป็นชื่อไฟล์ภาพล้วน (เช่น M3-2567-34-1.webp) แสดงเป็นภาพที่แคปจากต้นฉบับ
 const cell = c => /^[\w.-]+\.(png|jpe?g|gif|webp)$/i.test(String(c).trim()) ? '<img class="subimg" src="' + esc(imgSrc(c)) + '" alt="ข้อย่อย" loading="lazy" decoding="async">' : fmt(c);
 const sub = (q, i, k) => (q.itemNo || i + 1) + '.' + (k + 1);
@@ -164,29 +146,32 @@ const ansDone = () => Q.qs.filter(q => answered(q, Q.ans[q.id])).length;
 function saveExam() {
   if (!Q || Q.secure && false) return;
   const ans = {}, flags = {}; Q.qs.forEach(q => { if (Q.ans[q.id]) ans[qkey(q)] = Q.ans[q.id]; if (Q.flags[q.id]) flags[qkey(q)] = 1; });
-  store.set(EXK, { code: S.code, studentId: S.student.id, level: S.level, mode: Q.mode, std: Q.std || '', ind: Q.ind || '', skip: Q.skip || 0, secure: !!Q.secure, keys: Q.qs.map(qkey), ans, flags, idx: Q.idx, ts: Date.now() });
+  store.set(EXK, { code: S.code, studentId: S.student.id, level: S.level, mode: Q.mode, std: Q.std || '', ind: Q.ind || '', skip: Q.skip || 0, secure: !!Q.secure, keys: Q.qs.map(qkey), ans, flags, idx: Q.idx, end: Q.end || 0, asg: Q.asg || '', ts: Date.now() });
 }
-async function quiz(mode, std, ind, skip, secure, resume) {
+async function quiz(mode, std, ind, skip, secure, resume, keys, timed, asg) {
   loading('กำลังเตรียมข้อสอบ…');
   const lv = S.level, m = await cj(lv + '/meta.json');
   let qs;
   if (resume) qs = await questionsFor(resume.keys);
+  else if (keys) qs = await questionsFor(keys);
   else qs = mode === 'year' ? (await cj(lv + '/q-' + std + '.json')).slice()
     : await questionsFor(mode === 'mock' ? m.mock : (m.pool[ind ? std + '|' + ind : std] || []).slice(skip || 0, (skip || 0) + 20));
   if (!qs.length) { toast(skip ? 'ทำครบทุกข้อในหัวข้อนี้แล้ว' : 'ยังไม่มีข้อสอบในหัวข้อนี้'); return dash(); }
-  Q = { mode, std, ind, skip: skip || 0, qs, secure: !!secure, idx: 0, ans: {}, flags: {}, sols: null }; // secure = โหมดสอบของครู (ดู README: ไม่โหลดไฟล์เฉลยลงเครื่องนักเรียน ให้ Apps Script ตรวจและตอบเฉพาะถูก/ผิด)
-  if (resume) { qs.forEach(q => { const k = qkey(q); if (resume.ans[k]) Q.ans[q.id] = resume.ans[k]; if (resume.flags[k]) Q.flags[q.id] = 1; }); Q.idx = Math.min(resume.idx || 0, qs.length - 1); }
+  Q = { mode, std, ind, skip: skip || 0, qs, secure: !!secure, idx: 0, ans: {}, flags: {}, sols: null, asg: asg || (resume && resume.asg) || '', end: timed ? Date.now() + mockMinutes(qs.length) * 60000 : 0 }; // secure = โหมดสอบของครู (ดู README: ไม่โหลดไฟล์เฉลยลงเครื่องนักเรียน ให้ Apps Script ตรวจและตอบเฉพาะถูก/ผิด)
+  if (resume) { qs.forEach(q => { const k = qkey(q); if (resume.ans[k]) Q.ans[q.id] = resume.ans[k]; if (resume.flags[k]) Q.flags[q.id] = 1; }); Q.idx = Math.min(resume.idx || 0, qs.length - 1); Q.end = resume.end || 0; }
   if (!secure) yearsOf(qs).forEach(y => { cj(lv + '/k-' + y + '.json').catch(() => {}); if (mode === 'year') cj(lv + '/s-' + y + '.json', true).catch(() => {}); }); // เตรียมเฉลยไว้ตรวจทันที
-  saveExam(); showQ();
+  saveExam();
+  if (Q.end && Q.end <= Date.now()) { toast('หมดเวลาแล้ว ระบบส่งคำตอบที่ทำไว้ให้'); Q.auto = true; return submit(); }
+  showQ();
 }
-function examTitle() { return Q.mode === 'mock' ? 'ข้อสอบจำลอง' : Q.mode === 'year' ? 'ข้อสอบปี ' + Q.std : 'ฝึก ' + Q.std + (Q.ind ? ' · ' + Q.ind : ''); }
+function examTitle() { return modeText(Q.mode, Q.std, Q.ind); }
 function showQ() {
   const q = Q.qs[Q.idx], n = Q.qs.length, i = Q.idx, last = i === n - 1;
-  page('<div class="examtop"><button class="xbtn" data-a="leave" aria-label="ออกจากข้อสอบ (คำตอบถูกเก็บไว้)">' + ico('x') + '</button><div class="grow"><b>' + esc(examTitle()) + '</b><div class="prog" style="margin-top:6px"><i id="pbar" style="width:' + Math.round(ansDone() * 100 / n) + '%"></i></div></div><span class="small mute" id="pcount">ข้อ ' + (i + 1) + '/' + n + '</span></div>' +
+  page('<div class="examtop"><button class="xbtn" data-a="leave" aria-label="ออกจากข้อสอบ (คำตอบถูกเก็บไว้)">' + ico('x') + '</button><div class="grow"><b>' + esc(examTitle()) + '</b><div class="prog" style="margin-top:6px"><i id="pbar" style="width:' + Math.round(ansDone() * 100 / n) + '%"></i></div></div><span class="small mute" id="pcount">ข้อ ' + (i + 1) + '/' + n + '</span>' + timerHtml() + '</div>' +
     '<article class="paper q s-' + strandOf(q.standard) + '" id="qcard" data-i="' + i + '">' + qHead(q, i) + '<div class="sp"></div>' + qInput(q, i) + '<div class="sp"></div>' +
     '<button type="button" class="flagbtn' + (Q.flags[q.id] ? ' on' : '') + '" data-a="flag" id="flagb" aria-pressed="' + !!Q.flags[q.id] + '">' + ico('flag') + (Q.flags[q.id] ? ' ปักธงไว้แล้ว (ไม่แน่ใจ)' : ' ปักธงข้อที่ไม่แน่ใจ') + '</button></article>' +
     bar('<button class="btn sec gridbtn" data-a="sheet" aria-label="แผงเลขข้อ">' + ico('grid') + '</button><button class="btn sec" data-a="qprev"' + (i ? '' : ' disabled') + '>ก่อนหน้า</button><button class="btn" data-a="' + (last ? 'submit' : 'qnext') + '">' + (last ? ico('check') + 'ตรวจคำตอบ' : 'ถัดไป') + '</button>'), null);
-  fillInputs(q, Q.ans[q.id]);
+  fillInputs(q, Q.ans[q.id]); timerStart();
   window.scrollTo(0, 0);
   const nx = Q.qs[i + 1]; if (nx && imgSrc(nx.imageUrl)) { const im = new Image(); im.src = imgSrc(nx.imageUrl); } // โหลดภาพข้อถัดไปรอไว้
 }
@@ -224,7 +209,7 @@ function review(q, i, x) {
 const solBlock = (s, i) => s ? '<p class="row noprint" style="margin:8px 0"><button type="button" class="btn sm sec" data-a="sol" data-k="' + i + '">ดูเฉลยละเอียด</button></p><div class="sol" id="sol-' + i + '"><h3 class="solh">เฉลยละเอียด · ' + esc(s.title) + '</h3><div class="rich">' + rich(s.content) + '</div></div>' : '';
 function trySubmit() {
   const left = Q.qs.length - ansDone(), fl = Q.qs.filter(q => Q.flags[q.id]).length;
-  if ((left || fl) && !confirm((left ? 'ยังตอบไม่ครบ ' + left + ' ข้อ (ข้อเชิงซ้อน/เรียงลำดับต้องตอบทุกข้อย่อย)' : '') + (left && fl ? ' และ ' : '') + (fl ? 'มีข้อที่ปักธงไว้ ' + fl + ' ข้อ' : '') + ' ส่งคำตอบเลยหรือไม่?')) return false;
+  if (!Q.auto && (left || fl) && !confirm((left ? 'ยังตอบไม่ครบ ' + left + ' ข้อ (ข้อเชิงซ้อน/เรียงลำดับต้องตอบทุกข้อย่อย)' : '') + (left && fl ? ' และ ' : '') + (fl ? 'มีข้อที่ปักธงไว้ ' + fl + ' ข้อ' : '') + ' ส่งคำตอบเลยหรือไม่?')) return false;
   return true;
 }
 async function submit() {
@@ -232,7 +217,7 @@ async function submit() {
   closeSheet();
   loading('กำลังตรวจคำตอบ…');
   const lv = S.level, years = yearsOf(Q.qs), answers = {}; Q.qs.forEach(q => { answers[q.id] = Q.ans[q.id] || ''; });
-  const att = { attemptId: uuid(), code: S.code, studentId: S.student.id, mode: Q.mode, standard: Q.std || '', keys: Q.qs.map(qkey), answers: {}, rev: {} };
+  const att = { attemptId: uuid(), code: S.code, studentId: S.student.id, mode: Q.mode === 'asg' ? 'asg:' + Q.asg : (SRV[Q.mode] || [Q.mode])[0], standard: Q.mode === 'asg' ? 'งานมอบหมาย' : SRV[Q.mode] ? SRV[Q.mode][1] : Q.std || '', keys: Q.qs.map(qkey), answers: {}, rev: {} };
   Q.qs.forEach(q => { att.answers[qkey(q)] = answers[q.id]; });
   years.forEach(y => { att.rev[y] = revOf(lv + '/k-' + y + '.json'); });
   let items, r;
@@ -254,7 +239,7 @@ async function submit() {
   clearExam();
   store.set('onet_last', { studentId: S.student.id, code: S.code, level: lv, mode: Q.mode, std: Q.std || '', ind: Q.ind || '', keys: att.keys, answers: att.answers, flags: Object.keys(Q.flags).filter(k => Q.flags[k]).map(k => k), ts: Date.now() });
   renderResult(Q.qs, items, r, att, Q.mode, Q.std, Q.ind, Q.secure, Q.flags);
-  if (!Q.secure) enqueue(att); // บันทึกคะแนนเบื้องหลัง (Apps Script ตรวจซ้ำก่อนบันทึก)
+  if (!Q.secure) { afterSubmit(att, items); enqueue(att); } // บันทึกคะแนนเบื้องหลัง (Apps Script ตรวจซ้ำก่อนบันทึก)
 }
 function gradeLocal(qs, answers, kf, lv) {
   return qs.map(q => {
@@ -272,7 +257,7 @@ function renderResult(qs, items, r, att, mode, std, ind, secure, flags) {
     qs.map((q, i) => { const x = by[q.id] || {}, cls = x.ok ? 'ok-item' : x.earned > 0 ? 'part-item' : 'bad-item';
       return '<article class="paper qres ' + cls + ' s-' + strandOf(q.standard) + '">' + qHead(q, i, i > 1) + '<div class="stat ' + (x.ok ? 'ok' : x.earned > 0 ? 'part' : 'bad') + '">' + (x.ok ? '✓ ถูก' : x.earned > 0 ? '◐ ถูกบางส่วน' : '✗ ' + (x.yours ? 'ผิด' : 'ไม่ได้ตอบ')) + (mode === 'year' ? '' : ' <span class="pmute">(' + (x.earned || 0) + '/' + (x.points || 0) + ' คะแนน)</span>') + (flags && flags[q.id] ? ' <span class="pmute">· ⚑ ปักธงไว้</span>' : '') + '</div>' +
         review(q, i, x) + (x.explanation ? '<div class="pmute small">' + fmt(x.explanation) + '</div>' : '') + '<div id="slot-' + i + '"></div></article>'; }).join('') + '</div>' +
-    '<div class="row noprint">' + (mode === 'practice' ? '<button class="btn" data-a="next">ชุดถัดไป</button>' : '') + '<button class="btn sec" data-a="pdf">' + ico('print') + 'ดาวน์โหลดเฉลย PDF</button><button class="btn sec" data-a="dash">กลับหน้าแรก</button></div>', 's', 'mine');
+    '<div class="row noprint">' + (mode === 'practice' ? '<button class="btn" data-a="next">ชุดถัดไป</button>' : mode === 'review' || mode === 'custom' ? '<button class="btn" data-a="nav" data-k="review" data-kind="s">กลับหน้าทบทวน</button>' : '') + '<button class="btn sec" data-a="pdf">' + ico('print') + 'ดาวน์โหลดเฉลย PDF</button><button class="btn sec" data-a="dash">กลับหน้าแรก</button></div>', 's', 'mine');
   window.scrollTo(0, 0); fitFigures(app);
   if (secure) return;
   Q.sols = Promise.all(years.map(async y => { try { return (await cj(lv + '/s-' + y + '.json', true)) || {}; } catch (e) { return {}; } })).then(fs => {
@@ -315,6 +300,7 @@ async function prepPrintPage() {
   app.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; });
   await Promise.all([...app.querySelectorAll('img')].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))));
   app.querySelectorAll('.sol').forEach(s => s.classList.add('open'));
+  app.querySelectorAll('details.fold').forEach(d => { d.open = true; });
   const h = app.querySelector('h2'); document.title = 'O-NET วิทย์ ' + LV[S.level || 'P6'] + ' - ' + (h ? h.textContent.trim() : '');
 }
 
@@ -330,7 +316,7 @@ function res() {
 Object.assign(ACT, {
   home: () => { S.student = null; save(); return home(); },
   dash: () => S.student && S.code ? dash() : home(), res,
-  nav: d => { if (d.kind === 't') { A.tab = d.k; return admin(); } return ({ home: dash, exams: examsPage, learn: learnPage, mine: minePage })[d.k](); },
+  nav: d => { if (d.kind === 't') { A.tab = d.k; return admin(); } return ({ home: dash, exams: examsPage, learn: learnPage, review: reviewPage, mine: minePage })[d.k](); },
   pick: d => { S.student = { id: d.id, name: d.name }; PR = null; save(); return dash(); },
   room: () => { S.code = S.student = null; ROSTER = null; PR = null; save(); return home(); },
   sol: d => { const b = $('#sol-' + d.k), on = b.classList.toggle('open'); document.querySelector('[data-a=sol][data-k="' + d.k + '"]').textContent = on ? 'ซ่อนเฉลยละเอียด' : 'ดูเฉลยละเอียด'; },
@@ -339,9 +325,10 @@ Object.assign(ACT, {
   mock: () => quiz('mock'),
   year: d => quiz('year', d.y),
   study: d => study(d.std, d.ind || ''),
+  goto: d => { const el = document.getElementById(d.id); if (!el) return; const fd = el.querySelector('details.fold'); if (fd) { fd.open = true; fitFigures(fd); } const far = Math.abs(el.getBoundingClientRect().top) > 2500; el.scrollIntoView({ behavior: far || matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block: 'start' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); },
   prac: d => quiz('practice', d.std, d.ind || ''),
   next: () => quiz('practice', Q.std, Q.ind, Q.skip + Q.qs.length),
-  resume: async () => { const e = loadExam(); if (!e) return dash(); await quiz(e.mode, e.std, e.ind, e.skip, e.secure, e); },
+  resume: async () => { const e = loadExam(); if (!e) return dash(); await quiz(e.mode, e.std, e.ind, e.skip, e.secure, e, null, false, e.asg); },
   dropexam: () => { if (confirm('ทิ้งข้อสอบที่ทำค้างไว้? คำตอบที่เก็บไว้จะหายไป')) { clearExam(); return dash(); } },
   qnext: () => goQ(Q.idx + 1), qprev: () => goQ(Q.idx - 1),
   qgo: d => goQ(+d.i),

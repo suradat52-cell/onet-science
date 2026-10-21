@@ -4,7 +4,9 @@ const LV = { P6: 'ป.6', M3: 'ม.3' };
 const $ = s => document.querySelector(s), app = $('#app');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (c, t) => t ? Math.round(c * 100 / t) + '%' : '–';
-const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem(k); } catch (e) {} } };
+/* PREVIEW (ตั้งใน index.html): หน้าทดลอง /preview/ ใช้ที่เก็บในเครื่องแยกชื่อ (pv.*) ไม่ปนกับเว็บหลักที่โดเมนเดียวกัน */
+const NS = typeof PREVIEW !== 'undefined' && PREVIEW ? 'pv.' : '';
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(NS + k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) {} }, del(k) { try { localStorage.removeItem(NS + k); } catch (e) {} } };
 let S = store.get('onet') || {}, Q = null, A = { tab: 'students', level: 'P6' };
 const save = () => store.set('onet', { code: S.code, school: S.school, room: S.room, level: S.level, student: S.student, token: S.token });
 
@@ -42,12 +44,12 @@ async function run(fn, key) {
   try { await fn(); theme(); }
   catch (e) {
     toast(e.message);
-    if (/กำลัง/.test(app.textContent) && !/เข้าสู่ระบบใหม่|รหัสห้องเรียนไม่ถูกต้อง/.test(e.message)) { RETRY = fn; page('<section class="glass"><h2>เชื่อมต่อไม่สำเร็จ</h2><p class="mute">' + esc(e.message) + '</p><button class="btn" data-a="retry">ลองใหม่</button></section>', null); }
+    if (/กำลัง/.test(app.textContent) && !/เข้าสู่ระบบใหม่|รหัสห้องเรียนไม่ถูกต้อง/.test(e.message)) { RETRY = fn; page('<section class="glass errcard" role="alert"><div class="eic">' + ico('refresh') + '</div><h2>เชื่อมต่อไม่สำเร็จ</h2><p class="mute">' + esc(e.message) + '</p><p class="mute small">ตรวจสอบอินเทอร์เน็ตแล้วกด "ลองใหม่" · คำตอบที่ทำไว้ไม่หาย</p><button class="btn" data-a="retry">ลองใหม่</button></section>', null); }
     if (/เข้าสู่ระบบใหม่/.test(e.message)) { S.token = null; save(); admin(); }
     else if (/รหัสห้องเรียนไม่ถูกต้อง/.test(e.message) && S.code) { S.code = S.student = null; ROSTER = null; save(); home(); }
   } finally { if (key) BUSY.delete(key); }
 }
-const loading = t => { app.innerHTML = '<div class="glass mute">' + esc(t || 'กำลังโหลด…') + '<p id="slowhint" class="small" hidden>ช้ากว่าปกติ กำลังรอเซิร์ฟเวอร์ (ถ้ารอเกิน 30 วินาทีจะแจ้งให้ลองใหม่)</p></div>'; clearTimeout(loading.t); loading.t = setTimeout(() => { const h = document.getElementById('slowhint'); if (h) h.hidden = false; }, 12000); };
+const loading = t => { app.innerHTML = '<div class="glass skel" role="status" aria-busy="true"><p class="mute">' + esc(t || 'กำลังโหลด…') + '</p><div class="sk l1"></div><div class="sk l2"></div><div class="sk l3"></div><p id="slowhint" class="small" hidden>ช้ากว่าปกติ กำลังรอเซิร์ฟเวอร์ (ถ้ารอเกิน 30 วินาทีจะแจ้งให้ลองใหม่)</p></div><div class="glass skel" aria-hidden="true"><div class="sk l1"></div><div class="sk l2"></div></div>'; clearTimeout(loading.t); loading.t = setTimeout(() => { const h = document.getElementById('slowhint'); if (h) h.hidden = false; }, 12000); };
 
 /* ---------- ธีมตามระดับชั้น: ป.6 สด ตัวใหญ่ ปุ่มอวบ · ม.3 เรียบ ตัวเล็กลง เส้นบาง ---------- */
 function theme() {
@@ -126,6 +128,7 @@ const ICO = {
   back: '<path d="M15 5l-7 7 7 7"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', check: '<path d="M5 12l5 5 9-10"/>',
   play: '<path d="M8 5l11 7-11 7z"/>', grid: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>', refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>', flame: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2-1-3-.5-5 1-8z"/>',
   print: '<path d="M7 9V3h10v6M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><rect x="7" y="14" width="10" height="7"/>', out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>'
 };
 const ico = (n, st) => '<svg class="ico" viewBox="0 0 24 24"' + (st ? ' style="' + st + '"' : '') + ' aria-hidden="true">' + ICO[n] + '</svg>';
@@ -150,16 +153,22 @@ function heroArt() {
 }
 
 /* ---------- เมนูล่าง 4 ปุ่ม (นักเรียน / ครู) ---------- */
-const NAV_S = [['home', 'หน้าแรก', 'home'], ['exams', 'ข้อสอบ', 'exam'], ['learn', 'สรุป', 'book'], ['mine', 'ผลของฉัน', 'chart']];
+const NAV_S = [['home', 'หน้าแรก', 'home'], ['exams', 'ข้อสอบ', 'exam'], ['learn', 'สรุป', 'book'], ['review', 'ทบทวน', 'bulb'], ['mine', 'ผลของฉัน', 'chart']];
 const NAV_T = [['students', 'นักเรียน', 'users'], ['report', 'รายงาน', 'chart'], ['admins', 'แอดมิน', 'shield'], ['more', 'อื่น ๆ', 'list']];
 function setNav(kind, cur) {
   $('#lvb').style.display = kind === 't' ? 'none' : ''; // หน้าครูไม่ผูกกับระดับชั้น ซ่อนป้ายระดับ
   const n = $('#bnav');
   if (!kind) { n.classList.remove('on'); n.innerHTML = ''; app.classList.add('nonav'); return; }
-  app.classList.remove('nonav'); n.classList.add('on');
+  app.classList.remove('nonav'); n.classList.add('on'); app.classList.toggle('wide', kind === 't');
   n.innerHTML = '<div>' + (kind === 't' ? NAV_T : NAV_S).map(([k, t, i]) => '<button data-a="nav" data-k="' + k + '" data-kind="' + kind + '" class="' + (k === cur ? 'on' : '') + '" aria-label="' + t + '">' + ico(i) + t + '</button>').join('') + '</div>';
 }
-function page(html, kind, cur) { app.innerHTML = html; setNav(kind, cur); }
+/* การเข้าถึง: ผูกป้ายกับช่องกรอกที่อยู่ถัดจากป้าย · ตารางที่เลื่อนได้ต้องโฟกัสด้วยคีย์บอร์ดได้ */
+let LBL = 0;
+function a11yFix(root) {
+  root.querySelectorAll('label:not([for])').forEach(l => { const n = l.nextElementSibling; if (n && /^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName) && !l.querySelector('input,select,textarea')) { if (!n.id) n.id = 'f' + (++LBL); l.setAttribute('for', n.id); } });
+  root.querySelectorAll('.scroll').forEach(s => { s.tabIndex = 0; s.setAttribute('role', 'region'); if (!s.hasAttribute('aria-label')) s.setAttribute('aria-label', 'ตาราง เลื่อนดูได้'); });
+}
+function page(html, kind, cur) { app.innerHTML = html; a11yFix(app); setNav(kind, cur); }
 const bar = html => '<div class="bar"><div>' + html + '</div></div>';
 
 /* ---------- สถานะข้อสอบที่ทำค้างไว้: ปิดเว็บกลางคันแล้วเปิดใหม่ ทำต่อได้ ---------- */

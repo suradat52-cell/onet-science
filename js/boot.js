@@ -10,6 +10,12 @@ document.addEventListener('click', e => {
   b.setAttribute('aria-busy', 'true');
   run(() => ACT[b.dataset.a](b.dataset), key).finally(() => b.removeAttribute('aria-busy'));
 });
+document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('details.fold') && d.open) fitFigures(d); }, true);
 flushQ(); // คะแนนที่ยังไม่ได้ส่ง (เช่น ปิดเว็บ/เน็ตหลุดตอนส่ง) ส่งต่อเมื่อเปิดเว็บใหม่
 const SUMQ = new URLSearchParams(location.search).get('sum');
 run(() => { theme(); if (SUMQ && S.level && API_URL) { const [std, ind, hl] = SUMQ.split('|'); return study(std, ind, hl); } return S.student && S.code && API_URL ? dash() : home(); });
+
+/* PWA: ลงทะเบียน service worker (เฉพาะเมื่อ index.html ตั้ง PWA = true — หน้าทดลอง /preview/ ก่อน) + แถบออฟไลน์ */
+if ('serviceWorker' in navigator && typeof PWA !== 'undefined' && PWA) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+const offBar = () => { const o = document.getElementById('offline'); if (o) o.hidden = navigator.onLine !== false; };
+window.addEventListener('online', offBar); window.addEventListener('offline', offBar); offBar();

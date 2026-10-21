@@ -12,6 +12,12 @@
     "isomorphic-git": "^1.27.1",
     "mupdf": "^1.3.0",
     "puppeteer-core": "^23.0.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "lighthouse": "^13.0.0",
+    "axe-core": "^4.10.0",
+    "chrome-launcher": "^1.2.0"
   }
 }

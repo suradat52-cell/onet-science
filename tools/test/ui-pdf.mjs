@@ -7,7 +7,7 @@ import { pathToFileURL } from "url";
 import sharp from "sharp";
 import { ROOT, BLOCK_REAL_API } from "../lib.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const DIR = path.resolve(process.argv[2] || path.join(ROOT, "design", "final")), CAP = 2300; // px ของภาพ (ที่ 390 px กว้าง) ต่อหน้า PDF — หน้าที่ยาวกว่านี้ตัดท้าย
 const files = fs.readdirSync(DIR).filter(f => /\.png$/.test(f));
 const parse = f => { const m = f.match(/^(P6|M3|T)-(\d+)-(.+)\.png$/); return m && { lv: m[1], n: +m[2], name: m[3], f }; };

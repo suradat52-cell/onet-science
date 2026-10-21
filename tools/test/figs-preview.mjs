@@ -7,7 +7,7 @@ import path from "path";
 import { at, TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
 const [lv, ...names0] = process.argv.slice(2);
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const OUT = path.join(TOOLS, ".cache", "figs"); fs.mkdirSync(OUT, { recursive: true });
 const src = fs.readFileSync(at("figs", `${lv}.js`), "utf8");
 const FIGS = { P6: {}, M3: {} };

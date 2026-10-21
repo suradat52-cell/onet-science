@@ -25,7 +25,7 @@ let errs = 0, warns = 0;
 const bad = (f, m) => { errs++; console.log(`✗ ${path.basename(f)}: ${m}`); };
 const warn = (f, m) => { warns++; console.log(`! ${path.basename(f)}: ${m}`); };
 
-for (const f of files) {
+for (const f of files) { const errs0 = errs;
   const name = path.basename(f), lvFile = name.slice(0, 2);
   const text = fs.readFileSync(f, "utf8"), lines = text.split(/\r?\n/);
   const secs = []; let cur = null;
@@ -62,13 +62,24 @@ for (const f of files) {
   else { const b = sh[0].body.map(x => x.l.trim()); if (!/^สรุปย่อ 1 หน้า/.test(sh[0].title)) bad(f, "ชื่อบล็อกสรุปย่อต้องขึ้นต้นด้วย 'สรุปย่อ 1 หน้า'"); if (!b.some(l => l.startsWith("|"))) bad(f, "สรุปย่อ 1 หน้าไม่มีตาราง"); if (!b.some(l => l.startsWith("!! "))) bad(f, "สรุปย่อ 1 หน้าไม่มีกล่อง !!"); if (!b.some(l => l.startsWith("?? "))) bad(f, "สรุปย่อ 1 หน้าไม่มีประเด็นที่ออกบ่อย (??)"); if (b.some(l => l.startsWith("ex: "))) warn(f, "สรุปย่อ 1 หน้าไม่ควรมีตัวอย่าง ex:"); }
 
   // markup ทีละบรรทัด
-  const prefixes = /^(## |• |- |!! |\?\? |ex: |= |\||\[\[fig:[\w-]+(\|.*)?\]\]$)/;
+  const prefixes = /^(## |• |- |!! |\?\? |ex: |kc: |tr: |xx: |th: |an: |fl: |= |\||\[\[fig:[\w-]+(\|.*)?\]\]$)/;
+  const LONG = 140; // ย่อหน้า/รายการ/บรรทัดในกล่อง ยาวเกินนี้อ่านบนมือถือเกิน 4 บรรทัด (รูปแบบใหม่)
+  const all0 = text;
   let nEx = 0, nTip = 0, nFig = 0;
   for (const s of secs) {
     const body = s.body.filter(x => !/^\/\//.test(x.l));
-    let ex = 0, tip = 0, fg = 0;
-    for (const { l, n } of body) {
+    let ex = 0, tip = 0, fg = 0, card = "";
+    const nz = body.filter(x => x.l.trim());
+    for (const [bi, { l, n }] of nz.entries()) {
       const t = l.trim(); if (!t) continue;
+      // ตัวอย่าง 3 ขั้น: ex: โจทย์ → th: คิดอย่างไร (หลายบรรทัดได้) → an: คำตอบ (ต้องมี)
+      const next = (nz[bi + 1] || { l: "" }).l.trim();
+      if (t.startsWith("ex: ")) { if (card === "th") bad(f, `บรรทัด ${n}: ตัวอย่างก่อนหน้าไม่มี an: (คำตอบ)`); card = /^(th|an): /.test(next) ? "q" : ""; }
+      else if (t.startsWith("th: ")) { if (!card || card === "an") bad(f, `บรรทัด ${n}: th: ต้องตามหลัง ex: (โจทย์)`); else card = "th"; }
+      else if (t.startsWith("an: ")) { if (!card) bad(f, `บรรทัด ${n}: an: ต้องตามหลัง ex:/th:`); else card = "an"; }
+      else { if (card === "th" || card === "q") bad(f, `บรรทัด ${n}: ตัวอย่างก่อนหน้าไม่มี an: (คำตอบ)`); card = ""; }
+      if (t.startsWith("fl: ") && !t.slice(4).trim()) bad(f, `บรรทัด ${n}: fl: ว่าง`);
+      if (/^((kc|tr|th|an|fl): |(!!|\?\?|•|-) )/.test(t) && t.replace(/\*\*|\{|\}/g, "").length > LONG) (/^(kc|tr|th|an|fl): /.test(t) || /(^|\n)kc: /.test(all0) ? bad : warn)(f, `บรรทัด ${n}: ยาว ${t.length} ตัวอักษร (เกิน ${LONG}) อ่านบนมือถือเกิน 4 บรรทัด → แบ่งเป็นหลายบรรทัด`);
       if (!prefixes.test(t)) bad(f, `บรรทัด ${n}: ขึ้นต้นไม่ใช่ markup ที่ระบบรู้จัก → "${t.slice(0, 30)}"`);
       if ((t.match(/\{/g) || []).length !== (t.match(/\}/g) || []).length) bad(f, `บรรทัด ${n}: เครื่องหมาย { } ไม่ครบคู่`);
       for (const m of t.matchAll(/\{([^{}]*)\}/g)) if (!/^[^/]+\/[^/]+$/.test(m[1])) bad(f, `บรรทัด ${n}: เศษส่วน {${m[1]}} ต้องเป็น {เศษ/ส่วน} และห้ามมี / ซ้อน`);
@@ -85,7 +96,7 @@ for (const f of files) {
   // ไม่คัดลอกโจทย์
   const all = secs.flatMap(s => s.body.map(x => x.l)).join("\n");
   for (const q of qs.filter(q => q.lv === lvFile && q.std === std)) { const c = copied(all, q.text); if (c) warn(f, `ซ้ำโจทย์ ${q.y} ข้อ ${q.no} (${c.length} ตัวอักษร): "${c.slice(0, 40)}…"`); }
-  console.log(`${errs ? "✗" : "✓"} ${name}: ${secs.length} หัวข้อ · ex ${nEx} · ?? ${nTip} · ภาพ ${nFig} · ${all.length} ตัวอักษร`);
+  console.log(`${errs > errs0 ? "✗" : "✓"} ${name}: ${secs.length} หัวข้อ · ex ${nEx} · ?? ${nTip} · ภาพ ${nFig} · ${all.length} ตัวอักษร`);
 }
 console.log(errs ? `พบข้อผิดพลาด ${errs} รายการ` : "ผ่านทั้งหมด", warns ? `· คำเตือน ${warns}` : "");
 process.exit(errs ? 1 : 0);

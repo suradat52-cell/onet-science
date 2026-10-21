@@ -57,6 +57,7 @@ for (const f of files) {
 }
 const walk = (d, base = "") => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
   if (e.name === ".git") continue;
+  if (!base && e.name === "preview") continue; // หน้าทดลอง /preview/ ขึ้นด้วย tools/publish-preview.mjs เท่านั้น — publish.mjs ห้ามลบ/แตะ
   const rel = base ? base + "/" + e.name : e.name;
   if (e.isDirectory()) walk(path.join(d, e.name), rel);
   else if (!files.has(rel)) { fs.unlinkSync(path.join(d, e.name)); removed++; }

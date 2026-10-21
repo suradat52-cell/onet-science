@@ -6,7 +6,12 @@
 <meta name="theme-color" content="#080d24">
 <title>ติว O-NET วิทยาศาสตร์ ป.6 · ม.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+<meta name="description" content="ติวข้อสอบ O-NET วิทยาศาสตร์ ป.6 และ ม.3 ฟรี: สรุปเนื้อหาตามตัวชี้วัด ข้อสอบจริงย้อนหลังพร้อมเฉลย ข้อสอบจำลอง สมุดข้อผิด และบัตรคำ">
+<link rel="icon" href="icons/favicon-48.png" type="image/png" sizes="48x48">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="app.css">
 </head>
 <body class="lv-P6">
@@ -16,16 +21,22 @@
 <div id="sheet" class="sheet"></div>
 <div id="printq"></div>
 <div id="msg" role="status"></div>
+<div id="offline" role="status" hidden>ออฟไลน์อยู่ · ทำข้อสอบต่อได้ ระบบจะส่งคะแนนให้เองเมื่อมีเน็ต</div>
 <script>
 /* ====== ตั้งค่า: วาง URL ของ Apps Script Web app (ลงท้ายด้วย /exec) ====== */
+/* PREVIEW/IMG_BASE: tools/build-preview.mjs ตั้งค่าให้ตอนสร้างหน้าทดลอง (เว็บหลักคงเป็น false / images/) */
+const PREVIEW = false, IMG_BASE = 'images/', PWA = false;
 const API_URL = 'https://script.google.com/macros/s/AKfycbx6hs29CHXPQGAgLKR8goORieF0l8cSI_9WXuOsblbhCmi5SEejDTF8lvf1ESR-aNxS/exec';
+try { const st = JSON.parse(localStorage.getItem((PREVIEW ? 'pv.' : '') + 'set') || '{}'); if (st.light) document.body.classList.add('light'); } catch (e) {} // โหมดกลางวัน: ตั้งตั้งแต่ก่อนวาดหน้า กันจอวาบมืด
 </script>
-<script src="grade.js"></script>
-<script src="js/core.js"></script>
-<script src="js/exams-list.js"></script>
-<script src="js/rich.js"></script>
-<script src="js/student.js"></script>
-<script src="js/admin.js"></script>
-<script src="js/boot.js"></script>
+<script defer src="grade.js"></script>
+<script defer src="js/core.js"></script>
+<script defer src="js/exams-list.js"></script>
+<script defer src="js/rich.js"></script>
+<script defer src="js/student.js"></script>
+<script defer src="js/learn.js"></script>
+<script defer src="js/admin.js"></script>
+<script defer src="js/teacher.js"></script>
+<script defer src="js/boot.js"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@ import fs from "fs";
 import puppeteer from "puppeteer-core";
 import { at, BLOCK_REAL_API, expectedScore } from "../lib.mjs";
 
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(at("tools", ".cache", "admin.json"), "utf8"));
 const BASE = `http://localhost:${cfg.port}/`;
 const api = async (action, p = {}) => { const r = await (await fetch(BASE + "api", { method: "POST", body: JSON.stringify({ action, ...p }) })).json(); if (!r.ok) throw new Error(r.error); return r.data; };

@@ -70,7 +70,7 @@ await denied("รหัสเก่าหลังรีเซ็ตใช้ไ
 t("รหัสใหม่ใช้ได้", ((await api("enter", { code: nw })).students).length === 1);
 
 /* หน้าเว็บ: หน้าแรกไม่แสดงรายชื่อโรงเรียนหรือนักเรียน ต้องกรอกรหัสก่อน */
-const EDGE = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe"].find(f => fs.existsSync(f));
+const EDGE = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(f => fs.existsSync(f));
 const b = await puppeteer.launch({ executablePath: EDGE, headless: true, args: BLOCK_REAL_API }), p = await b.newPage();
 await p.goto(BASE + "/", { waitUntil: "networkidle0" });
 await p.evaluate(() => localStorage.clear()); await p.goto(BASE + "/", { waitUntil: "networkidle0" });

@@ -1,0 +1,4 @@
+{
+  "api": "https://script.google.com/macros/s/AKfycbzvQmtCTbdk6Tq30iawgw5O-QkjXCjpIZUMkUiZmEKO70CR90sl1zWWfR8B70vn8b5B/exec",
+  "note": "URL ของ Apps Script deployment ชื่อ preview (สร้างด้วย clasp deploy โดยไม่ใส่ -i) — ห้ามใช้ URL ของเว็บหลัก (AKfycbx6hs29…) ในไฟล์นี้ · ชีตใช้ร่วมกัน"
+}

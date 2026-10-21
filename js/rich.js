@@ -22,35 +22,91 @@ function loadFigs(lv) {
   return figLoaded[lv];
 }
 const figOf = n => FIG[n] || (FIGS[S.level || 'P6'] || {})[n];
-function rich(t) {
-  let h = '', ul = false, tb = false, box = '';
-  const close = () => { if (ul) { h += '</ul>'; ul = false; } if (tb) { h += '</table></div>'; tb = false; } if (box) { h += '</div>'; box = ''; } };
-  // บรรทัดติดกันที่ขึ้นต้นเหมือนกัน (ex: / !! / ??) รวมเป็นกล่องเดียว
-  const boxLine = (kind, cls, title, text) => { if (box !== kind) { close(); box = kind; h += '<div class="box ' + cls + '"><b class="t">' + title + '</b>'; } else h += '<br>'; h += inl(text); };
-  String(t).split(/\r?\n/).forEach(raw => {
-    const l = raw.trim(); let m;
+/* ชื่อหัวข้อในไฟล์สรุปมีป้ายท้ายชื่อ "(ออก N ข้อ)" / "(ยังไม่เคยออกสอบ)" → แยกเป็นชื่อกับป้าย (หน้าเว็บคำนวณจำนวนข้อจริงจากคลังข้อสอบเอง) */
+function titleParts(t) {
+  const m = String(t).match(/^(.*?)\s*\((ออกบ่อยที่สุด\s*(\d+)\s*ข้อ|ออก\s*(\d+)\s*ข้อ|ยังไม่เคยออกสอบ[^)]*)\)\s*$/);
+  if (!m) return { name: String(t), n: null, never: false };
+  const never = /^ยังไม่เคยออก/.test(m[2]);
+  return { name: m[1], n: never ? 0 : +(m[3] || m[4]), never };
+}
+/* ตารางเปรียบเทียบ: 2 คอลัมน์ = ตารางปกติ · 3 คอลัมน์ขึ้นไป = บนมือถือแตกเป็นการ์ดต่อแถว (ไม่ต้องเลื่อนซ้าย-ขวา) ตอนพิมพ์กลับเป็นตาราง */
+function tableHtml(rows) {
+  const n = Math.max(...rows.map(r => r.length)), head = rows[0].map(c => c.replace(/\*\*|\{|\}/g, ''));
+  const long = Math.max(...rows.flat().map(c => c.replace(/\*\*|\{|\}/g, '').length)) > 24, stk = n >= 4 || (n === 3 && long);
+  return '<div class="tw"><table class="ctab' + (stk ? ' stk' : '') + '" data-n="' + n + '"><tr class="hd">' + rows[0].map(c => '<th>' + inl(c) + '</th>').join('') + '</tr>' +
+    rows.slice(1).map(r => '<tr>' + r.map((c, i) => '<td data-l="' + esc(head[i] || '') + '">' + inl(c) + '</td>').join('') + '</tr>').join('') + '</table></div>';
+}
+/* ctx (ไม่บังคับ): { pre: 'รหัสนำหน้า id ของหัวข้อย่อย', exams: { 'ชื่อหัวข้อย่อย': ['2565 ข้อ 20', …] } } */
+function rich(t, ctx) {
+  ctx = ctx || {};
+  let h = '', ul = false, tb = null, box = '', cs = '', fl = 0, hn = 0, cur = '', boxPos = 0, boxN = 0, boxHd = false;
+  const lines = String(t).split(/\r?\n/).map(x => x.trim());
+  const close = () => {
+    if (ul) { h += '</ul>'; ul = false; }
+    if (tb) { h += tableHtml(tb); tb = null; }
+    if (box) { h += '</div>'; if (boxN > 1) h = h.slice(0, boxPos) + h.slice(boxPos).replace('class="box ', 'class="box multi '); box = ''; }
+    if (cs) { h += cs === 'th' ? '</ol></div></div>' : '</div></div>'; cs = ''; }
+    if (fl) { h += '</ol>'; fl = 0; }
+  };
+  const yearsOf = () => [...new Set(((ctx.exams || {})[cur] || []).map(x => x.split(' ')[0]))].sort().reverse();
+  // บรรทัดติดกันที่ขึ้นต้นเหมือนกัน (kc: / !! / ?? / tr: / ex: แบบเดิม) รวมเป็นกล่องเดียว
+  const boxLine = (kind, cls, title, text) => { if (/^[·.–— -]*$/.test(text)) return; if (box !== kind) { close(); box = kind; boxN = 0; boxHd = false; boxPos = h.length; h += '<div class="box ' + cls + '"><b class="t">' + title + '</b>'; } boxN++; const hd = /:$/.test(text.trim()), sub = boxHd; boxHd = hd; h += '<div class="bl' + (hd ? ' hd' : '') + (sub ? ' sub' : '') + '">' + inl(text) + '</div>'; }; // บรรทัดลงท้าย ":" = หัวโจทย์ บรรทัดถัดไปเป็นคำตอบของหัวนั้น (ไม่ขึ้นแถวใหม่)
+  lines.forEach((l, i) => {
+    let m;
     if (!l) return close();
+    if (l.startsWith('kc: ')) return boxLine('kc', 'kc', 'แนวคิดหลัก', l.slice(4));
     if (l.startsWith('!! ')) return boxLine('!!', 'key', 'จำให้แม่น', l.slice(3));
-    if (l.startsWith('?? ')) return boxLine('??', 'tip', 'ข้อสอบชอบถาม', l.slice(3));
-    if (l.startsWith('ex: ')) return boxLine('ex', 'ex', 'ตัวอย่าง', l.slice(4));
+    if (l.startsWith('?? ')) { const ys = yearsOf(); return boxLine('??', 'ask', 'ข้อสอบชอบถาม' + (ys.length ? '<span class="yrs">ออกปี ' + ys.join(' · ') + '</span>' : ''), l.slice(3)); }
+    if (l.startsWith('tr: ')) return boxLine('tr', 'trap', 'กับดักที่พลาดบ่อย', l.slice(4));
     if (l.startsWith('xx: ')) return boxLine('xx', 'tip', 'จุดที่มักพลาด', l.slice(4));
     if (l.startsWith('ob: ')) return boxLine('ob', 'warn', 'ข้อสังเกต (ควรตรวจกับครู)', l.slice(4));
-    if (/^[•\-] /.test(l)) { if (tb || box) close(); if (!ul) { h += '<ul>'; ul = true; } h += '<li>' + inl(l.slice(2)) + '</li>'; return; }
-    if (l[0] === '|') { if (ul || box) close(); if (!tb) { h += '<div class="scroll"><table>'; tb = true; } h += '<tr>' + l.replace(/^\||\|$/g, '').split('|').map(c => '<td>' + inl(c.trim()) + '</td>').join('') + '</tr>'; return; }
+    if (l.startsWith('ex: ')) {
+      const nx = lines.slice(i + 1).find(x => x) || '';
+      if (/^(th|an): /.test(nx)) { close(); cs = 'q'; h += '<div class="exm"><div class="exq"><b class="t">โจทย์</b>' + inl(l.slice(4)); return; }
+      return boxLine('ex', 'ex', 'ตัวอย่าง', l.slice(4));
+    }
+    if (cs && (m = l.match(/^(th|an): (.*)$/))) {
+      if (m[1] === 'th') { if (cs === 'q') { h += '</div><div class="exth"><b class="t">คิดอย่างไร</b><ol>'; cs = 'th'; } h += '<li>' + inl(m[2]) + '</li>'; return; }
+      if (cs === 'th') h += '</ol></div>'; else if (cs === 'q') h += '</div>';
+      if (cs !== 'an') { h += '<div class="exan"><b class="t">คำตอบ</b>' + inl(m[2]); cs = 'an'; } else h += '<br>' + inl(m[2]);
+      return;
+    }
+    if ((m = l.match(/^fl: ([^|]+?)(?:\s*\|\s*(.*))?$/))) { if (!fl) { close(); h += '<ol class="flow">'; } fl++; h += '<li><span class="n">' + fl + '</span><div><b>' + inl(m[1]) + '</b>' + (m[2] ? '<span>' + inl(m[2]) + '</span>' : '') + '</div></li>'; return; }
+    if (/^[•\-] /.test(l)) { if (tb || box || cs || fl) close(); if (!ul) { h += '<ul>'; ul = true; } h += '<li>' + inl(l.slice(2)) + '</li>'; return; }
+    if (l[0] === '|') { if (ul || box || cs || fl) close(); (tb = tb || []).push(l.replace(/^\||\|$/g, '').split('|').map(c => c.trim())); return; }
     close();
     if ((m = l.match(/^>> ([^|]+)\|([^|]*)\|(.+)$/))) { h += '<p class="lnk">อ่านต่อในสรุปเนื้อหา: <a target="_blank" rel="noopener" href="?sum=' + encodeURIComponent(m[1].trim() + '|' + m[2].trim() + '|' + m[3].trim()) + '">' + esc(m[1].trim()) + (m[2].trim() ? ' · ' + esc(m[2].trim()) : '') + ' · ' + esc(m[3].trim()) + '</a></p>'; return; }
-    if (l.startsWith('## ')) h += '<h3>' + inl(l.slice(3)) + '</h3>';
+    if (l.startsWith('## ')) {
+      cur = l.slice(3).trim(); hn++;
+      h += '<h3' + (ctx.pre ? ' id="' + ctx.pre + '-' + hn + '"' : '') + '>' + inl(cur) + '</h3>';
+      const ex = (ctx.exams || {})[cur];
+      if (ex && ex.length) h += '<p class="seen"><b class="t">ข้อสอบจริงที่เคยออก</b> ' + ex.map(esc).join(' · ') + '</p>';
+    }
     else if (l.startsWith('= ')) h += '<div class="eq">' + l.slice(2).split(/\s{2,}/).map(x => '<span class="e">' + inl(x) + '</span>').join('') + '</div>';
-    else if ((m = l.match(/^\[\[fig:([\w-]+)(?:\|(.*))?\]\]$/)) && figOf(m[1])) h += '<figure data-fig="1" tabindex="0" role="button" aria-label="แตะเพื่อขยายภาพเต็มจอ">' + figOf(m[1]) + '<div class="figtip noprint">แตะภาพเพื่อขยายเต็มจอ · หมุนจอแนวนอนได้</div>' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
+    else if ((m = l.match(/^\[\[fig:([\w-]+)(?:\|(.*))?\]\]$/)) && figOf(m[1])) h += '<figure data-fig="1">' + figOf(m[1]) + '<button type="button" class="figtip noprint">แตะภาพเพื่อขยายเต็มจอ · หมุนจอแนวนอนได้</button>' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
     else if ((m = l.match(/^\[\[img:(https:\/\/[^|\]\s]+)(?:\|(.*))?\]\]$/))) h += '<figure><img src="' + esc(m[1]) + '" alt="' + esc(m[2] || 'ภาพประกอบ') + '">' + (m[2] ? '<figcaption>' + inl(m[2]) + '</figcaption>' : '') + '</figure>';
     else h += '<p>' + inl(l) + '</p>';
   });
   close(); return h;
 }
 
-/* ตัวอักษรในภาพ SVG ต้องไม่เล็กกว่า 11 px บนหน้าจอจริง: ภาพส่วนใหญ่กว้าง 360 หน่วยแต่ถูกย่อให้พอดีจอมือถือ ตัวหนังสือเลยเหลือ 7–9 px
+/* แผนผังความคิดของมาตรฐาน (สร้างอัตโนมัติจากหัวข้อ @@ ในไฟล์สรุป) เรียงแนวตั้ง: ชื่อมาตรฐาน → กลุ่มตามความถี่ที่ข้อสอบออก → หัวข้อ · กดหัวข้อ = เลื่อนไปส่วนนั้น
+   notes = [{indicator,title,content}] · count(indicator) = จำนวนข้อสอบจริงในคลัง · เฉพาะหัวข้อที่มีตัวชี้วัด (ไม่รวมสรุปย่อ) */
+function mindMap(std, name, notes, count) {
+  const bands = [['ออกบ่อย (4 ข้อขึ้นไป)', n => n >= 4, 'b1'], ['ออกบ้าง (2–3 ข้อ)', n => n >= 2 && n <= 3, 'b2'], ['ออกนาน ๆ ครั้ง (1 ข้อ)', n => n === 1, 'b3'], ['ยังไม่เคยออก (ย่อไว้)', n => n === 0, 'b4']];
+  const items = notes.map((n, i) => ({ i, n, p: titleParts(n.title), c: count(n.indicator) })).filter(x => x.n.indicator);
+  let h = '<nav class="mm" aria-label="แผนผังความคิด"><div class="mm-root"><b>' + esc(std) + '</b> ' + esc(name || '') + '<span>แตะหัวข้อเพื่อเลื่อนไปอ่าน</span></div>';
+  bands.forEach(([label, test, cls]) => {
+    const g = items.filter(x => test(x.c)); if (!g.length) return;
+    h += '<div class="mm-g ' + cls + '"><div class="mm-h">' + label + ' · ' + g.length + ' หัวข้อ</div><ul>' +
+      g.map(x => '<li><button type="button" data-a="goto" data-id="s' + x.i + '"><span class="tag">' + esc(x.n.indicator) + '</span><span class="mm-t" title="' + esc(x.p.name) + '">' + esc(x.p.name.split(':')[0]) + '</span><span class="mm-n">' + (x.c ? x.c + ' ข้อ' : 'ไม่มี') + '</span></button></li>').join('') + '</ul></div>';
+  });
+  return h + '</nav>';
+}
+
+/* ตัวอักษรในภาพ SVG ต้องไม่เล็กกว่า 12 px บนหน้าจอจริง: ภาพส่วนใหญ่กว้าง 360 หน่วยแต่ถูกย่อให้พอดีจอมือถือ ตัวหนังสือเลยเหลือ 7–9 px
    ภาพที่เล็กเกินไปจะถูกขยายให้กว้างพอ (ตัวอักษรเล็กสุดเท่ากับ 11 px) แล้วเลื่อนดูซ้าย-ขวาในกรอบ แทนการบีบตัวอักษรให้ทับกัน */
-const MIN_SVG_TEXT = 11;
+const MIN_SVG_TEXT = 12;
 function fitFigures(root) {
   (root || document).querySelectorAll('figure svg').forEach(svg => {
     const fig = svg.closest('figure'), vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);

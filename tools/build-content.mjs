@@ -13,6 +13,7 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath, pathToFileURL } from "url";
 import { createRequire } from "module";
+import { extras } from "./build-extras.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)), ROOT = path.dirname(HERE);
 const G = createRequire(import.meta.url)(path.join(ROOT, "grade.js"));
@@ -56,11 +57,23 @@ export function buildContent(outDir = path.join(ROOT, "content")) {
       if (/^@@\s/.test(line)) {
         const c = line.slice(2).split("|").map(x => x.trim());
         if (c.length < 4 || !LEVELS.includes(c[0]) || !c[1] || !c[3]) throw new Error(f + ": หัวข้อไม่ถูกต้อง: " + line);
-        cur = { level: c[0], standard: c[1], indicator: c[2], title: c.slice(3).join(" | "), lines: [] }; sums.push(cur);
+        cur = { level: c[0], standard: c[1], indicator: c[2], title: c.slice(3).join(" | "), file: f.replace(/\.txt$/, ""), lines: [] }; sums.push(cur);
       } else if (cur) cur.lines.push(line.replace(/\t/g, " "));
     }
   }
-  sums.forEach(s => { s.content = s.lines.join("\n").replace(/^\n+|\n+$/g, ""); delete s.lines; });
+  // ข้อสอบจริงที่จับคู่กับหัวข้อย่อย (## ...) จากตารางครอบคลุม data/summaries/coverage-<ไฟล์>.tsv → หน้าเว็บแสดง "ข้อสอบจริงที่เคยออก" และปีในกล่อง "ข้อสอบชอบถาม"
+  const covCache = {}, nz = x => String(x).replace(/\s+/g, "");
+  const covOf = file => covCache[file] || (covCache[file] = fs.existsSync(path.join(sd, "coverage-" + file + ".tsv")) ? rd("data", "summaries", "coverage-" + file + ".tsv").split("\n").slice(1).filter(Boolean).map(l => l.split("\t")) : []);
+  sums.forEach(s => {
+    s.content = s.lines.join("\n").replace(/^\n+|\n+$/g, ""); delete s.lines;
+    const rows = s.indicator ? covOf(s.file).filter(r => r[2] === s.indicator && r[4]) : [], x = {};
+    for (const h of s.content.split("\n").filter(l => l.startsWith("## ")).map(l => l.slice(3).trim())) {
+      const hit = rows.filter(r => nz(h).startsWith(nz(r[4])) || nz(r[4]).startsWith(nz(h))).sort((a, b) => (+b[0] - +a[0]) || (+a[1] - +b[1]));
+      if (hit.length) x[h] = hit.map(r => r[0] + " ข้อ " + r[1]);
+    }
+    if (Object.keys(x).length) s.x = x;
+    delete s.file;
+  });
   const sols = [];
   const sld = path.join(ROOT, "data", "solutions");
   if (fs.existsSync(sld)) for (const f of fs.readdirSync(sld).filter(f => /^(P6|M3)-\d{4}\.txt$/.test(f)).sort()) {
@@ -130,13 +143,14 @@ export function buildContent(outDir = path.join(ROOT, "content")) {
 
     // ---- สรุปเนื้อหารายมาตรฐาน + สถิติหน้าแอดมิน ----
     const sl = sums.filter(s => s.level === lv && s.content);
-    for (const s of [...new Set(sl.map(x => x.standard))]) put(`${lv}/sum-${stdKey(s)}.json`, sl.filter(x => x.standard === s).map(x => ({ indicator: x.indicator, title: x.title, content: x.content })));
+    for (const s of [...new Set(sl.map(x => x.standard))]) put(`${lv}/sum-${stdKey(s)}.json`, sl.filter(x => x.standard === s).map(x => (x.x ? { indicator: x.indicator, title: x.title, content: x.content, x: x.x } : { indicator: x.indicator, title: x.title, content: x.content })));
     const smStd = {}; sl.forEach(r => { const o = (smStd[r.standard] = smStd[r.standard] || { level: lv, standard: r.standard, sections: 0, chars: 0 }); o.sections++; o.chars += r.content.length; });
     Object.keys(smStd).sort().forEach(k => stats.sm.push(smStd[k]));
     years.forEach(y => { stats.bank.push({ level: lv, examYear: y, n: qs.filter(q => q.examYear === y).length }); stats.sol.push({ level: lv, examYear: y, n: sols.filter(s => s.level === lv && s.examYear === y).length }); });
     const bpy = {}; bpl.forEach(r => { const o = (bpy[r.year] = bpy[r.year] || { level: lv, year: r.year, standards: 0, indicators: 0, items: 0 }); if (r.indicator) o.indicators++; else o.standards++; o.items += +r.items || 0; });
     Object.keys(bpy).sort().forEach(y => stats.bp.push(bpy[y]));
 
+    extras({ lv, qs, sl, inCurr, keyOf, put });
     put(`${lv}/meta.json`, { level: lv, year: (bpl[0] || {}).year || "", planYear, years, bankYears, standards, pool, mock, asked, summaries: [...new Set(sl.map(x => x.standard))] });
   }
   // admin stats (รวมสองระดับ) เก็บในไฟล์เดียว โหลดเฉพาะหน้าแอดมิน
