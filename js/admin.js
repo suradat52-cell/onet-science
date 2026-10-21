@@ -20,7 +20,7 @@ async function admin() {
     const st = A.school ? await api('students', { token: S.token, schoolId: A.school, level: A.level }) : [];
     const rc = A.school ? await api('roomCodes', { token: S.token, schoolId: A.school, level: A.level }) : [];
     body = pick + '<h2 style="margin:4px 2px 8px">รหัสห้องเรียน</h2><p class="mute small" style="margin:0 2px 10px">ให้นักเรียนกรอกเพื่อเห็นรายชื่อห้องตัวเอง (รหัสหลุด กด "สร้างรหัสใหม่" รหัสเดิมใช้ไม่ได้ทันที)</p>' +
-      (rc.length ? rc.map(x => '<section class="glass"><div class="row" style="flex-wrap:nowrap"><div style="flex:1"><div class="mute small">ห้อง ' + esc(x.room) + ' · ' + x.count + ' คน</div><div class="codebox">' + esc(x.code) + '</div></div></div><div class="sp"></div><div class="row"><button class="btn sm" data-a="copycode" data-code="' + esc(x.code) + '">' + ico('copy') + 'คัดลอกรหัส</button><button class="btn sm sec noprint" data-a="rcreset" data-code="' + esc(x.code) + '">' + ico('refresh') + 'สร้างรหัสใหม่</button></div></section>').join('') : '<section class="glass mute">ยังไม่มีห้อง: เพิ่มรายชื่อนักเรียนด้านล่าง ระบบจะสร้างรหัสให้ทุกห้องอัตโนมัติ</section>') +
+      (rc.length ? rc.map(x => '<section class="glass"><div class="row" style="flex-wrap:nowrap"><div style="flex:1"><div class="mute small">ห้อง ' + esc(x.room) + ' · ' + x.count + ' คน</div><div class="codebox">' + esc(x.code) + '</div></div></div><div class="sp"></div><div class="row"><button class="btn sm" data-a="copycode" data-code="' + esc(x.code) + '">' + ico('copy') + 'คัดลอกรหัส</button><button class="btn sm sec noprint" data-a="rcreset" data-code="' + esc(x.code) + '">' + ico('refresh') + 'สร้างรหัสใหม่</button></div>' + expHtml(x) + '</section>').join('') : '<section class="glass mute">ยังไม่มีห้อง: เพิ่มรายชื่อนักเรียนด้านล่าง ระบบจะสร้างรหัสให้ทุกห้องอัตโนมัติ</section>') +
       '<section class="glass noprint"><h2>เพิ่มรายชื่อนักเรียน</h2><p class="mute small">บรรทัดละคน: ห้อง,เลขที่,ชื่อ-สกุล (วางจาก Excel ได้)</p><textarea id="st" aria-label="รายชื่อนักเรียน"></textarea><div class="sp"></div><button class="btn" data-a="addst">เพิ่มนักเรียน</button></section>' +
       '<article class="paper"><h2>รายชื่อ ' + st.length + ' คน</h2><div class="scroll"><table class="wide" style="min-width:420px">' + st.map(s => '<tr><td>' + esc(s.room) + '</td><td>' + esc(s.no) + '</td><td>' + esc(s.name) + '</td><td class="n noprint"><button class="btn danger" data-a="delst" data-id="' + esc(s.id) + '">ลบ</button></td></tr>').join('') + '</table></div></article>';
   } else if (A.tab === 'report') {
@@ -43,6 +43,7 @@ async function admin() {
         '<h3>ผังข้อสอบ</h3>' + t([['ระดับ'], ['ปีการศึกษา'], ['มาตรฐาน', 1], ['ตัวชี้วัด', 1], ['จำนวนข้อ', 1]], st.bp.map(x => [LV[x.level] || x.level, x.year, x.standards, x.indicators, x.items])) +
         '<h3>สรุปเนื้อหา รวม ' + sumN(st.sm, x => x.sections) + ' หัวข้อ</h3>' + t([['ระดับ'], ['มาตรฐาน'], ['หัวข้อ', 1], ['ตัวอักษร', 1]], st.sm.map(x => [LV[x.level] || x.level, x.standard, x.sections, x.chars])) + '</article>';
     }
+    body += pwHtml();
     body += '<div class="sp"></div><button class="btn sec" data-a="logout">' + ico('out') + 'ออกจากระบบ</button><div class="sp"></div><button class="btn ghost" data-a="home">กลับหน้านักเรียน</button>';
   }
   page(head + body, 't', A.tab);
@@ -95,3 +96,19 @@ Object.assign(ACT, {
   schooltest: async d => { await api('setSchoolTest', { token: S.token, id: d.id, isTest: d.on === '1' }); toast(d.on === '1' ? 'ตั้งเป็นโรงเรียนทดสอบแล้ว ผลสอบใหม่จะไปแท็บ Attempts_test' : 'ยกเลิกแล้ว'); await admin(); },
   movetest: async () => { if (!confirm('ย้ายผลสอบของโรงเรียนทดสอบทั้งหมดจากแท็บ Attempts ไป Attempts_test? (ทำสำเนาชีตสำรองแล้วหรือยัง)')) return; const r = await api('moveTestAttempts', { token: S.token, confirm: 'ย้าย' }); toast('ย้ายแล้ว ' + r.moved + ' แถว จาก ' + r.schools + ' โรงเรียน'); }
 });
+
+/* ---------- วันหมดอายุของรหัสห้อง · เปลี่ยนรหัสผ่านตัวเอง ---------- */
+const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+function expHtml(x) {
+  const past = x.expires && x.expires < todayISO();
+  return '<div class="expbox"><label for="ex-' + esc(x.code) + '">วันหมดอายุของรหัส (ไม่ใส่ = ไม่หมดอายุ)</label><div class="row"><input type="date" id="ex-' + esc(x.code) + '" value="' + esc(x.expires || '') + '"><button class="btn sm sec" data-a="rcexp" data-code="' + esc(x.code) + '">บันทึกวันหมดอายุ</button></div>' +
+    (x.expires ? '<p class="small ' + (past ? 'bad' : 'mute') + '">' + (past ? 'หมดอายุแล้ว นักเรียนกรอกรหัสนี้ไม่ได้ · กด "สร้างรหัสใหม่" หรือเลื่อนวันหมดอายุ' : 'ใช้ได้ถึงสิ้นวันที่ ' + esc(new Date(x.expires + 'T00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }))) + '</p>' : '') + '</div>';
+}
+function pwHtml() {
+  return '<section class="glass"><h2>เปลี่ยนรหัสผ่านของฉัน</h2><form id="pw"><label>รหัสผ่านเดิม</label><input name="oldPassword" type="password" required autocomplete="current-password"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label><input name="newPassword" type="password" required minlength="8" autocomplete="new-password"><label>พิมพ์รหัสผ่านใหม่อีกครั้ง</label><input name="confirm" type="password" required minlength="8" autocomplete="new-password"><div class="sp"></div><button class="btn sec">เปลี่ยนรหัสผ่าน</button></form></section>';
+}
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'pw') return; e.preventDefault();
+  run(async () => { const f = Object.fromEntries(new FormData(e.target)); if (f.newPassword !== f.confirm) throw new Error('รหัสผ่านใหม่สองช่องไม่ตรงกัน'); await api('changePassword', { token: S.token, oldPassword: f.oldPassword, newPassword: f.newPassword }); e.target.reset(); toast('เปลี่ยนรหัสผ่านแล้ว ครั้งหน้าใช้รหัสใหม่เข้าสู่ระบบ'); }, 'form:pw');
+});
+Object.assign(ACT, { rcexp: async d => { await api('setRoomExpiry', { token: S.token, code: d.code, expires: $('#ex-' + d.code).value }); toast('บันทึกวันหมดอายุแล้ว'); await admin(); } });

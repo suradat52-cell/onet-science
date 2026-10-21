@@ -161,7 +161,7 @@ Object.assign(ACT, {
   csv: () => { const b = new Blob([csvText()], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'รายงาน-' + LV[A.level] + (RS.room ? '-ห้อง' + RS.room.replace(/[\\/]/g, '-') : '') + '-' + dstr(new Date()) + '.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast('ดาวน์โหลดไฟล์ CSV แล้ว'); },
   repdf: async () => { RS.sub = 'room'; await admin(); await prepPrintPage(); window.print(); },
   schoolact: async d => { await api('setSchoolActive', { token: S.token, id: d.id, active: d.on === '1' }); toast(d.on === '1' ? 'เปิดใช้งานโรงเรียนแล้ว' : 'ปิดใช้งานโรงเรียนแล้ว (ข้อมูลยังอยู่ครบ)'); await admin(); },
-  diag: async () => { const b = $('#diagout'); b.innerHTML = '<p class="mute">กำลังตรวจ (ใช้เวลาหลายวินาที)…</p>'; try { b.innerHTML = diagHtml(await api('diag', {})); } catch (e) { b.innerHTML = '<p class="mute">' + esc(e.message) + '</p>'; } }
+  diag: async () => { const b = $('#diagout'); b.innerHTML = '<p class="mute">กำลังตรวจ (ใช้เวลาหลายวินาที)…</p>'; try { b.innerHTML = diagHtml(await api('diag', { token: S.token })); } catch (e) { b.innerHTML = '<p class="mute">' + esc(e.message) + '</p>'; } }
 });
 
 /* ---------- คะแนนรายคน (หน้าแรกของรายงาน สำหรับครูทั่วไป): เลือกห้อง → ตารางทุกคน → กดชื่อ → ตัวชี้วัดที่อ่อน · ดาวน์โหลด Excel ---------- */

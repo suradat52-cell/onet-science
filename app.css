@@ -560,3 +560,5 @@ table.hm.sc th.sticky{min-width:170px}
 #figview .iv{display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;background:#0b0f24;padding:0}
 #figview .iv img{max-width:100%;max-height:100%;width:auto;height:auto;background:#fff;transform-origin:center center;user-select:none;-webkit-user-drag:none;will-change:transform}
 #figview .zb{min-width:44px;font-size:1.2em}
+
+.expbox{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}.expbox .row input{flex:1 1 150px}

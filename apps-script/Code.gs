@@ -7,15 +7,15 @@
 
 const SHEETS = {
   Schools:   ['id', 'name', 'active', 'isTest'], // isTest = TRUE: โรงเรียนทดสอบ ผลสอบไปอยู่แท็บ Attempts_test (ไม่ปนกับของจริง)
-  Admins:    ['id', 'username', 'salt', 'hash', 'name', 'role', 'schoolId', 'active'],
+  Admins:    ['id', 'username', 'salt', 'hash', 'name', 'role', 'schoolId', 'active', 'lastLogin'], // lastLogin = เข้าสู่ระบบสำเร็จครั้งล่าสุด (ใช้ยืนยันว่าบัญชีใช้ได้จริงก่อนปิดบัญชีแอดมินกลางเดิม)
   Students:  ['id', 'schoolId', 'level', 'room', 'no', 'name', 'active'],
-  Rooms:     ['code', 'schoolId', 'level', 'room', 'active'], // รหัสห้องเรียน 6 ตัว ต่อ (โรงเรียน + ระดับ + ห้อง)
+  Rooms:     ['code', 'schoolId', 'level', 'room', 'active', 'expires'], // expires = วันหมดอายุของรหัส (yyyy-mm-dd, ว่าง = ไม่หมดอายุ) // รหัสห้องเรียน 6 ตัว ต่อ (โรงเรียน + ระดับ + ห้อง)
   Assignments: ['id', 'schoolId', 'level', 'room', 'title', 'kind', 'std', 'ind', 'keys', 'due', 'note', 'pair', 'ts', 'active'], // งานที่ครูมอบหมาย: kind = practice | pre | post | read · keys = ปี/ข้อ คั่นด้วย , · room ว่าง = ทุกห้อง · แท็บนี้สร้างเองตอนมอบงานครั้งแรก
   Requests:  ['id', 'ts', 'name', 'school', 'email', 'reason', 'username', 'salt', 'hash', 'status', 'adminId', 'schoolId', 'decidedAt', 'decidedBy'], // คำขอใช้งานของครูโรงเรียนอื่น: status = pending | approved | rejected · แท็บนี้สร้างเองเมื่อมีคำขอแรก
   Attempts:  ['id', 'ts', 'schoolId', 'studentId', 'level', 'mode', 'standard', 'total', 'correct', 'detail', 'score', 'maxScore', 'status', 'answers', 'ms'] // status: ok = ตรวจซ้ำแล้ว · pending = ดึงเฉลยไม่ได้ตอนนั้น (เก็บคำตอบไว้ใน answers รอ regrade) · ms = เวลาที่ใช้บันทึก
 };
 SHEETS.Attempts_test = SHEETS.Attempts; // ผลสอบของโรงเรียนทดสอบ คอลัมน์เดียวกับ Attempts
-const WRITES = ['setSchoolTest', 'moveTestAttempts', 'requestAccess', 'decideRequest', 'setAdminActive', 'saveAssignment', 'removeAssignment', 'setSchoolActive', 'roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade', 'purgeAttempts']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
+const WRITES = ['setRoomExpiry', 'changePassword', 'setSchoolTest', 'moveTestAttempts', 'requestAccess', 'decideRequest', 'setAdminActive', 'saveAssignment', 'removeAssignment', 'setSchoolActive', 'roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade', 'purgeAttempts']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
 // ที่อยู่ไฟล์เนื้อหาของเว็บ (GitHub Pages) — ต้องแก้ถ้าย้ายโดเมน
 const CONTENT_BASE = 'https://suradat52-cell.github.io/onet-science/content/';
 
@@ -157,11 +157,19 @@ function newCode() {
 }
 function normCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 // รหัสห้อง → แถวของห้อง · รหัสผิด/ไม่มี/ถูกปิด = error (หน่วงเวลาเพื่อกันการเดารหัส)
+/* กันการเดารหัสห้อง (ไม่มี IP ใน Apps Script จึงนับรวมทั้งระบบ): กรอกรหัสผิดเกิน RC_FAIL_MAX ครั้งใน 10 นาที → ปิดการ "กรอกรหัสใหม่" 15 นาที
+   ระหว่างปิด: นักเรียนที่เข้าห้องอยู่แล้วใช้งานต่อได้ (คำขอมี studentId ที่อยู่ในห้องนั้นจริง) · การกรอกรหัสใหม่ทุกกรณีถูกปฏิเสธ จึงเดาต่อไม่ได้ */
+const RC_FAIL_MAX = 60, RC_LOCK_SEC = 900;
+function rcFail_() { const c = CacheService.getScriptCache(), k = 'rcf_' + Math.floor(Date.now() / 600000), n = +(c.get(k) || 0) + 1; c.put(k, String(n), 700); if (n >= RC_FAIL_MAX) c.put('rc_lock', '1', RC_LOCK_SEC); }
+function todayStr_() { return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd'); }
 function roomOf(p) {
-  const c = normCode(p && p.code);
+  const c = normCode(p && p.code), locked = CacheService.getScriptCache().get('rc_lock');
   const r = c.length === 6 && tbl('Rooms').filter(function (x) { return x.code === c && on(x); })[0];
   const sc = r && tbl('Schools').filter(function (x) { return x.id === r.schoolId && on(x); })[0];
-  if (!r || !sc) { Utilities.sleep(600); throw new Error('รหัสห้องเรียนไม่ถูกต้อง'); } // โรงเรียนที่ถูกปิดใช้งาน = เข้าไม่ได้ (ข้อมูลยังอยู่ครบ)
+  if (locked && !(r && sc && p.studentId && tbl('Students').some(function (s) { return s.id === String(p.studentId) && s.schoolId === r.schoolId && s.level === r.level && s.room === r.room && on(s); })))
+    throw new Error('มีการลองรหัสห้องผิดจำนวนมาก ระบบปิดการกรอกรหัสใหม่ชั่วคราว 15 นาที (นักเรียนที่เข้าห้องอยู่แล้วใช้งานต่อได้)');
+  if (!r || !sc) { rcFail_(); Utilities.sleep(600); throw new Error('รหัสห้องเรียนไม่ถูกต้อง'); } // โรงเรียนที่ถูกปิดใช้งาน = เข้าไม่ได้ (ข้อมูลยังอยู่ครบ)
+  if (r.expires && todayStr_() > r.expires) throw new Error('รหัสห้องนี้หมดอายุแล้ว ขอรหัสใหม่จากครู');
   return r;
 }
 // นักเรียนต้องอยู่ในห้องของรหัสนั้นจริง
@@ -180,7 +188,7 @@ function ensureRooms(schoolId, level) {
   const have = {}; tbl('Rooms').filter(function (r) { return r.schoolId === schoolId && r.level === level && on(r); }).forEach(function (r) { have[r.room] = r; });
   const cnt = {}; studentsOf(schoolId, level).forEach(function (s) { cnt[s.room] = (cnt[s.room] || 0) + 1; });
   Object.keys(cnt).forEach(function (room) { if (!have[room]) { have[room] = { code: newCode(), schoolId: schoolId, level: level, room: room, active: 'Y' }; add('Rooms', have[room]); } });
-  return Object.keys(cnt).sort().map(function (room) { return { room: room, code: have[room].code, count: cnt[room] }; });
+  return Object.keys(cnt).sort().map(function (room) { return { room: room, code: have[room].code, count: cnt[room], expires: have[room].expires || '' }; });
 }
 /* งานที่ครูมอบหมาย (แท็บ Assignments สร้างเองครั้งแรกที่มอบงาน · ถ้ายังไม่มีแท็บ ฝั่งนักเรียนได้รายการว่าง ไม่เปิดชีตเพิ่ม) */
 function ensureSheet(name) {
@@ -354,6 +362,7 @@ const API = {
   },
   // รอยเวลาล่าสุดของคำขอที่ส่ง trace:1 (ไม่แตะชีต ใช้ได้แม้ชีตค้าง) · มีแต่ชื่อขั้นและเวลา
   traces: function (p) {
+    auth(p, true);
     const c = CacheService.getScriptCache(), idx = JSON.parse(c.get('tr_idx') || '[]'), out = [];
     idx.slice(-(+p.n || 40)).forEach(function (id) { const v = c.get('tr_' + id); if (v) out.push(JSON.parse(v)); });
     return out;
@@ -372,6 +381,7 @@ const API = {
   // ตรวจความช้า (อ่านอย่างเดียว ไม่เขียนข้อมูล): จับเวลาแต่ละขั้น — เปิดชีต นับเซลล์ทุกแท็บ อ่านแต่ละแท็บ ขอล็อก แคช UrlFetch ไป GitHub
   // เรียกได้นาทีละครั้ง (กันถูกยิงรัว) ไม่ต้องล็อกอิน เพราะถ้าระบบช้า/ค้างจะล็อกอินไม่ได้ · ผลลัพธ์มีแต่ชื่อแท็บ ขนาด และเวลา ไม่มีข้อมูลนักเรียน
   diag: function (p) {
+    auth(p, true);
     const cache = CacheService.getScriptCache();
     if (cache.get('diag_busy')) throw new Error('diag ถูกเรียกไปเมื่อสักครู่ รอ 60 วินาทีแล้วลองใหม่');
     cache.put('diag_busy', '1', 60);
@@ -395,13 +405,20 @@ const API = {
 
   /* ----- แอดมิน ----- */
   login: function (p) {
-    const u = String(p.username || '').trim().toLowerCase();
+    const u = String(p.username || '').trim().toLowerCase(), lc = CacheService.getScriptCache();
+    if (lc.get('ll_' + u)) throw new Error('บัญชีนี้ถูกล็อกชั่วคราว 15 นาที เพราะใส่รหัสผ่านผิดหลายครั้ง');
     const a = tbl('Admins').filter(function (x) { return x.username.toLowerCase() === u && on(x); })[0];
     if (!a) { const rq = ss().getSheetByName('Requests') && tbl('Requests').filter(function (r) { return r.username.toLowerCase() === u && r.status !== 'approved'; }).pop();
       if (rq && hash(rq.salt, p.password) === rq.hash) throw new Error(rq.status === 'pending' ? 'บัญชีนี้รอผู้ดูแลระบบอนุมัติ ยังเข้าสู่ระบบไม่ได้' : 'คำขอใช้งานนี้ไม่ได้รับอนุมัติ ติดต่อผู้ดูแลระบบ');
       const off = tbl('Admins').filter(function (x) { return x.username.toLowerCase() === u && !on(x); })[0];
       if (off && hash(off.salt, p.password) === off.hash) throw new Error('บัญชีนี้ถูกปิดใช้งาน ติดต่อผู้ดูแลระบบ'); }
-    if (!a || hash(a.salt, p.password) !== a.hash) { Utilities.sleep(600); throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); }
+    if (!a || hash(a.salt, p.password) !== a.hash) {
+      const n = +(lc.get('lf_' + u) || 0) + 1; lc.put('lf_' + u, String(n), 900);
+      if (n >= 5) { lc.put('ll_' + u, '1', 900); lc.remove('lf_' + u); throw new Error('ใส่รหัสผ่านผิด 5 ครั้ง บัญชีนี้ถูกล็อกชั่วคราว 15 นาที'); }
+      Utilities.sleep(600); throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (เหลืออีก ' + (5 - n) + ' ครั้งก่อนล็อก 15 นาที)');
+    }
+    lc.remove('lf_' + u);
+    try { ensureHeaders('Admins'); a.lastLogin = new Date().toISOString(); setRow('Admins', a); } catch (e) {} // บันทึกไม่ได้ไม่ทำให้ล็อกอินล้ม
     const token = Utilities.getUuid();
     CacheService.getScriptCache().put('s_' + token, JSON.stringify({ id: a.id, name: a.name, role: a.role, schoolId: a.schoolId }), 21600);
     return { token: token };
@@ -436,6 +453,7 @@ const API = {
     const a = auth(p), t = tbl('Admins').filter(function (x) { return x.id === p.id; })[0];
     if (!t) throw new Error('ไม่พบแอดมิน');
     if (t.id === a.id) throw new Error('ลบบัญชีของตัวเองไม่ได้');
+    if (t.role === 'super' && !tbl('Admins').some(function (x) { return x.id !== t.id && x.role === 'super' && on(x) && x.lastLogin; })) throw new Error('ปิดแอดมินกลางคนนี้ไม่ได้: ต้องมีแอดมินกลางคนอื่นที่เปิดใช้งานและเคยเข้าสู่ระบบสำเร็จแล้วก่อน');
     if (a.role !== 'super' && (t.role === 'super' || t.schoolId !== a.schoolId)) throw new Error('ไม่มีสิทธิ์');
     t.active = 'N'; setRow('Admins', t); return true;
   },
@@ -552,6 +570,24 @@ const API = {
     return { moved: rows.length, schools: test.length };
   },
 
+  // ตั้งวันหมดอายุของรหัสห้อง (ครูของโรงเรียนนั้น / แอดมินกลาง) · ว่าง = ไม่หมดอายุ
+  setRoomExpiry: function (p) {
+    const a = auth(p), c = normCode(p.code), r = tbl('Rooms').filter(function (x) { return x.code === c && on(x); })[0];
+    if (!r) throw new Error('ไม่พบรหัสห้อง');
+    if (a.role !== 'super' && r.schoolId !== a.schoolId) throw new Error('ไม่มีสิทธิ์');
+    const e = String(p.expires || '');
+    if (e && !/^\d{4}-\d{2}-\d{2}$/.test(e)) throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
+    ensureHeaders('Rooms'); r.expires = e; setRow('Rooms', r); return { code: r.code, expires: e };
+  },
+  // เปลี่ยนรหัสผ่านตัวเอง: ต้องใส่รหัสเดิมถูก · ใหม่อย่างน้อย 8 ตัว
+  changePassword: function (p) {
+    const a = auth(p), me = tbl('Admins').filter(function (x) { return x.id === a.id; })[0];
+    if (!me || hash(me.salt, p.oldPassword) !== me.hash) throw new Error('รหัสผ่านเดิมไม่ถูกต้อง');
+    if (String(p.newPassword || '').length < 8) throw new Error('รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร');
+    if (p.newPassword === p.oldPassword) throw new Error('รหัสผ่านใหม่ต้องต่างจากเดิม');
+    me.salt = uid(); me.hash = hash(me.salt, p.newPassword); setRow('Admins', me); return true;
+  },
+
   /* ----- คำขอใช้งานของครูโรงเรียนอื่น ----- */
   // สมัคร (ไม่ต้องล็อกอิน): เก็บรหัสผ่านแบบแฮชไว้ในคำขอ · อนุมัติแล้วจึงเป็นบัญชีแอดมินโรงเรียน
   // กันสมัครรัว: ทั้งระบบไม่เกิน 20 คำขอ/ชั่วโมง · อีเมลเดียวไม่เกิน 3 คำขอ/ชั่วโมง · ช่องกับดักบอท (website) ต้องว่าง
@@ -601,6 +637,7 @@ const API = {
     const a = auth(p, true), t = tbl('Admins').filter(function (x) { return x.id === String(p.id); })[0];
     if (!t) throw new Error('ไม่พบบัญชี');
     if (t.id === a.id) throw new Error('ปิดบัญชีของตัวเองไม่ได้');
+    if ((p.active === false || p.active === 'N') && t.role === 'super' && !tbl('Admins').some(function (x) { return x.id !== t.id && x.role === 'super' && on(x) && x.lastLogin; })) throw new Error('ปิดแอดมินกลางคนนี้ไม่ได้: ต้องมีแอดมินกลางคนอื่นที่เปิดใช้งานและเคยเข้าสู่ระบบสำเร็จแล้วก่อน');
     t.active = p.active === false || p.active === 'N' ? 'N' : 'Y'; setRow('Admins', t); return { id: t.id, active: on(t) };
   },
   report: function (p) {

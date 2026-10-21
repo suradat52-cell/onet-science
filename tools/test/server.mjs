@@ -43,7 +43,7 @@ const book = {}, cache = {};
 const ctx = vm.createContext({
   SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: n => book[n] || null, insertSheet: n => (book[n] = new Sheet(n)) }) },
   Utilities: {
-    getUuid: () => crypto.randomUUID(), sleep: () => {},
+    getUuid: () => crypto.randomUUID(), sleep: () => {}, formatDate: (d) => new Date(d.getTime() + 7 * 3600e3).toISOString().slice(0, 10),
     DigestAlgorithm: { SHA_256: "sha256" }, Charset: { UTF_8: "utf8" },
     computeDigest: (alg, s) => [...crypto.createHash("sha256").update(s, "utf8").digest()].map(b => (b > 127 ? b - 256 : b)),
   },
@@ -79,6 +79,7 @@ http.createServer((req, res) => {
   if (req.url.startsWith("/__appendfail")) { globalThis.__APPEND_FAIL = /on=1/.test(req.url); res.writeHead(200); return res.end("appendfail=" + globalThis.__APPEND_FAIL); } // ทดสอบ: เขียนแถวผลสอบล้มเหลว
   if (req.url.startsWith("/__clearcache")) { const ks = Object.keys(cache).filter(k => /^(aid_|p_)/.test(k)); ks.forEach(k => delete cache[k]); res.writeHead(200); return res.end("cleared " + ks.length); } // ทดสอบ: แคชหมดอายุ (เกิน 6 ชม.)
   if (req.url.startsWith("/__sheet")) { const n = decodeURIComponent((/n=([^&]+)/.exec(req.url) || [])[1] || ""), sh = book[n]; res.writeHead(200, { "Content-Type": "application/json" }); if (!sh) return res.end("null"); const [h, ...rows] = sh.data; return res.end(JSON.stringify(rows.filter(r => r.some(x => x !== "")).map(r => Object.fromEntries(h.map((k, i) => [k, String(r[i] ?? "")]))))); } // ทดสอบ: อ่านแท็บในชีตจำลอง
+  if (req.url.startsWith("/__uncache")) { const k = decodeURIComponent((/k=([^&]+)/.exec(req.url) || [])[1] || ""); delete cache[k]; res.writeHead(200); return res.end("ok"); } // ทดสอบ: จำลองแคชหมดเวลา (เช่น ครบ 15 นาที)
   if (req.url.startsWith("/__selftest")) { const fn = (/fn=([A-Za-z_]+)/.exec(req.url) || [])[1] || "testAll"; const n0 = logs.length; let err = ""; try { ctx[fn](); } catch (e) { err = String(e.message || e); } res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); return res.end(logs.slice(n0).join("\n") + (err ? "\nERROR " + err : "")); }
   if (req.method === "POST" && req.url === "/api") {
     let b = ""; req.on("data", d => (b += d));

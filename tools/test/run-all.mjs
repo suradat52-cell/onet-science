@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import { TOOLS } from "../lib.mjs";
 
-const ALL = ["a11y", "figzoom", "grading", "secure", "privacy", "guards", "alts", "outcurr", "summary-format", "figs-text", "print", "browser", "learn", "teacher", "offline", "sum-audit", "responsive", "core", "save", "signup", "testschool", "scores", "qimg"];
+const ALL = ["a11y", "figzoom", "grading", "secure", "privacy", "guards", "alts", "outcurr", "summary-format", "figs-text", "print", "browser", "learn", "teacher", "offline", "sum-audit", "responsive", "core", "save", "signup", "testschool", "scores", "qimg", "security"];
 const want = process.argv[2] ? process.argv[2].split(",") : ALL;
 const PORT = 8765, CACHE = path.join(TOOLS, ".cache");
 const killPort = () => spawnSync("powershell", ["-NoProfile", "-Command", `Get-NetTCPConnection -LocalPort ${PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`]);
