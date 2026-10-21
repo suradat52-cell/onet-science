@@ -6,14 +6,16 @@
  */
 
 const SHEETS = {
-  Schools:   ['id', 'name', 'active'],
+  Schools:   ['id', 'name', 'active', 'isTest'], // isTest = TRUE: โรงเรียนทดสอบ ผลสอบไปอยู่แท็บ Attempts_test (ไม่ปนกับของจริง)
   Admins:    ['id', 'username', 'salt', 'hash', 'name', 'role', 'schoolId', 'active'],
   Students:  ['id', 'schoolId', 'level', 'room', 'no', 'name', 'active'],
   Rooms:     ['code', 'schoolId', 'level', 'room', 'active'], // รหัสห้องเรียน 6 ตัว ต่อ (โรงเรียน + ระดับ + ห้อง)
   Assignments: ['id', 'schoolId', 'level', 'room', 'title', 'kind', 'std', 'ind', 'keys', 'due', 'note', 'pair', 'ts', 'active'], // งานที่ครูมอบหมาย: kind = practice | pre | post | read · keys = ปี/ข้อ คั่นด้วย , · room ว่าง = ทุกห้อง · แท็บนี้สร้างเองตอนมอบงานครั้งแรก
+  Requests:  ['id', 'ts', 'name', 'school', 'email', 'reason', 'username', 'salt', 'hash', 'status', 'adminId', 'schoolId', 'decidedAt', 'decidedBy'], // คำขอใช้งานของครูโรงเรียนอื่น: status = pending | approved | rejected · แท็บนี้สร้างเองเมื่อมีคำขอแรก
   Attempts:  ['id', 'ts', 'schoolId', 'studentId', 'level', 'mode', 'standard', 'total', 'correct', 'detail', 'score', 'maxScore', 'status', 'answers', 'ms'] // status: ok = ตรวจซ้ำแล้ว · pending = ดึงเฉลยไม่ได้ตอนนั้น (เก็บคำตอบไว้ใน answers รอ regrade) · ms = เวลาที่ใช้บันทึก
 };
-const WRITES = ['saveAssignment', 'removeAssignment', 'setSchoolActive', 'roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade', 'purgeAttempts']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
+SHEETS.Attempts_test = SHEETS.Attempts; // ผลสอบของโรงเรียนทดสอบ คอลัมน์เดียวกับ Attempts
+const WRITES = ['setSchoolTest', 'moveTestAttempts', 'requestAccess', 'decideRequest', 'setAdminActive', 'saveAssignment', 'removeAssignment', 'setSchoolActive', 'roomCodes', 'resetRoomCode', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'regrade', 'purgeAttempts']; // submitAttempt ล็อกเฉพาะตอนเขียน (หลังโหลดเฉลยเสร็จ)
 // ที่อยู่ไฟล์เนื้อหาของเว็บ (GitHub Pages) — ต้องแก้ถ้าย้ายโดเมน
 const CONTENT_BASE = 'https://suradat52-cell.github.io/onet-science/content/';
 
@@ -71,9 +73,9 @@ function qType(q) { return TYPES.indexOf(q.type) >= 0 ? q.type : (q.choices ? 'm
 function ss() { return SpreadsheetApp.getActiveSpreadsheet(); }
 function uid() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
 function on(r) { return String(r.active).toUpperCase() !== 'N'; }
-const CACHED_TABLES = { Schools: 1, Students: 1, Rooms: 1, Assignments: 1 }, TBL_TTL = 300; // แคช 2 นาที: enter/progress ไม่ต้องเปิดชีตทุกครั้ง (ลดคำขอที่ชนกันที่ชีต)
+const CACHED_TABLES = { Schools: 1, Students: 1, Rooms: 1, Assignments: 1, Admins: 1, Requests: 1 }, TBL_TTL = 300; // แคช 2 นาที: enter/progress ไม่ต้องเปิดชีตทุกครั้ง (ลดคำขอที่ชนกันที่ชีต)
 let NOCACHE = false;       // true ระหว่างคำสั่งที่เขียนข้อมูล: อ่านสดจากชีตเสมอ (เลขแถวต้องตรง)
-function dropTblCache() { try { CacheService.getScriptCache().removeAll(['t_Schools', 't_Students', 't_Rooms', 't_Assignments']); } catch (e) {} }
+function dropTblCache() { try { CacheService.getScriptCache().removeAll(['t_Schools', 't_Students', 't_Rooms', 't_Assignments', 't_Admins', 't_Requests']); } catch (e) {} }
 function tbl(name) {
   const cache = CACHED_TABLES[name] ? CacheService.getScriptCache() : null;
   if (cache && !NOCACHE) { const hit = cache.get('t_' + name); if (hit) return JSON.parse(hit); }
@@ -87,7 +89,7 @@ function ensureHeaders(name) {
   const c = CacheService.getScriptCache(); if (c.get('h_' + name)) return;
   const s = ss().getSheetByName(name), head = s.getRange(1, 1, 1, Math.max(s.getLastColumn(), 1)).getValues()[0].map(String);
   SHEETS[name].forEach(function (k, i) { if (head.indexOf(k) < 0) s.getRange(1, i + 1).setValue(k); });
-  if (name === 'Attempts') { // เตรียมแถวล่วงหน้า: ต่อแถวเมื่อเหลือน้อย แล้วตั้งรูปแบบข้อความทั้งแท็บ (appendRow ไม่ต้องจัดรูปแบบทีละครั้ง)
+  if (name === 'Attempts' || name === 'Attempts_test') { // เตรียมแถวล่วงหน้า: ต่อแถวเมื่อเหลือน้อย แล้วตั้งรูปแบบข้อความทั้งแท็บ (appendRow ไม่ต้องจัดรูปแบบทีละครั้ง)
     if (s.getLastRow() > s.getMaxRows() - 150) s.insertRowsAfter(s.getMaxRows(), 1000);
     s.getRange(1, 1, s.getMaxRows(), SHEETS[name].length).setNumberFormat('@');
   }
@@ -111,6 +113,7 @@ function auth(p, needSuper) {
   const s = p.token && CacheService.getScriptCache().get('s_' + p.token);
   if (!s) throw new Error('กรุณาเข้าสู่ระบบใหม่');
   const a = JSON.parse(s);
+  if (!tbl('Admins').some(function (x) { return x.id === a.id && on(x); })) throw new Error('กรุณาเข้าสู่ระบบใหม่'); // ถูกปิดใช้งานระหว่างใช้งาน
   if (needSuper && a.role !== 'super') throw new Error('เฉพาะผู้ดูแลระบบกลาง');
   return a;
 }
@@ -141,6 +144,7 @@ function loadKeys(level, year, rev) {
 /* ---------- รหัสห้องเรียน (ความเป็นส่วนตัวของรายชื่อนักเรียน) ----------
    นักเรียนต้องมีรหัสห้อง 6 ตัวจึงเห็นรายชื่อของห้องนั้น · ระบบรู้โรงเรียน/ระดับ/ห้องจากรหัส ไม่แสดงรายชื่อโรงเรียนแบบเปิด
    ตัวอักษรตัดตัวที่สับสนออก (0 O 1 I L) */
+const RQ_PER_HOUR = 20; // คำขอใช้งานใหม่ทั้งระบบต่อชั่วโมง
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function newCode() {
   const used = {}; tbl('Rooms').forEach(function (r) { used[r.code] = 1; });
@@ -194,14 +198,18 @@ function asgFor(r) {
   if (!hasAsg()) return [];
   return tbl('Assignments').filter(function (x) { return x.schoolId === r.schoolId && x.level === r.level && on(x) && (x.room === '' || x.room === r.room); }).map(asgOut);
 }
+/* โรงเรียนทดสอบ (Schools.isTest = TRUE): อ่าน/เขียนผลสอบที่แท็บ Attempts_test แทน Attempts */
+function isTestSchool(id) { const s = tbl('Schools').filter(function (x) { return x.id === String(id); })[0]; return !!s && String(s.isTest || '').toUpperCase() === 'TRUE'; }
+function atSheet(schoolId) { return isTestSchool(schoolId) ? 'Attempts_test' : 'Attempts'; }
+function attemptsOf(schoolId) { const n = atSheet(schoolId); return n === 'Attempts' || ss().getSheetByName(n) ? tbl(n) : []; }
 function appendAttempt(o) {
-  ensureHeaders('Attempts');
-  const s = ss().getSheetByName('Attempts');
-  s.appendRow(toRow('Attempts', o));
+  const n = atSheet(o.schoolId); if (n !== 'Attempts') ensureSheet(n);
+  ensureHeaders(n);
+  ss().getSheetByName(n).appendRow(toRow(n, o));
 }
 // ค้นหา attemptId โดยอ่านเฉพาะคอลัมน์ id (ไม่อ่านทั้งแท็บ) แล้วอ่านแถวที่เจอ
-function findAttempt(aid) {
-  const s = ss().getSheetByName('Attempts'), n = s.getLastRow() - 1; if (n < 1) return null;
+function findAttempt(aid, schoolId) {
+  const s = ss().getSheetByName(atSheet(schoolId)); if (!s) return null; const n = s.getLastRow() - 1; if (n < 1) return null;
   tr('fa-read-ids'); const ids = s.getRange(2, 1, n, 1).getValues(); let at = -1; tr('fa-ids-read');
   for (let i = ids.length - 1; i >= 0; i--) if (String(ids[i][0]) === aid) { at = i; break; }
   if (at < 0) return null;
@@ -211,7 +219,8 @@ function findAttempt(aid) {
 }
 function regradePending() {
   let done = 0, still = 0, left = 0;
-  tbl('Attempts').filter(function (t) { return t.status === 'pending'; }).forEach(function (t, i) {
+  const sheetOf = {}; const pend = [].concat.apply([], ['Attempts', 'Attempts_test'].filter(function (n) { return ss().getSheetByName(n); }).map(function (n) { return tbl(n).filter(function (t) { return t.status === 'pending'; }).map(function (t) { sheetOf[t.id] = n; return t; }); }));
+  pend.forEach(function (t, i) {
     if (i >= 40) { left++; return; }
     try {
       const d = JSON.parse(t.answers || '{}'), files = {}, items = [];
@@ -224,7 +233,7 @@ function regradePending() {
       const sum = function (f) { return Math.round(items.reduce(function (n, x) { return n + x[f]; }, 0) * 100) / 100; };
       t.total = items.length; t.correct = sum('ok'); t.score = sum('earned'); t.maxScore = sum('points'); t.status = 'ok'; t.answers = '';
       t.detail = JSON.stringify(items.map(function (x) { return { q: t.level + '-' + x.k.replace('/', '-'), ok: x.ok, s: x.s }; }));
-      setRow('Attempts', t); CacheService.getScriptCache().remove('p_' + t.studentId); done++;
+      setRow(sheetOf[t.id], t); CacheService.getScriptCache().remove('p_' + t.studentId); done++;
     } catch (e) { still++; }
   });
   return { regraded: done, stillPending: still, notTried: left };
@@ -275,7 +284,7 @@ const API = {
   progress: function (p) {
     const room = roomOf(p), stu = studentIn(room, p.studentId);
     const pc = CacheService.getScriptCache(), hit = pc.get('p_' + stu.id); if (hit) return Object.assign(JSON.parse(hit), { assignments: asgFor(room) }); // งานที่ครูมอบหมายแนบมากับ progress (ไม่เพิ่มคำขอ) · ไม่อยู่ในแคชของนักเรียน จึงเห็นงานใหม่ทันที
-    const seen = {}, at = tbl('Attempts').filter(function (t) { if (t.studentId !== stu.id || seen[t.id]) return false; seen[t.id] = 1; return true; }), done = {};
+    const seen = {}, at = attemptsOf(stu.schoolId).filter(function (t) { if (t.studentId !== stu.id || seen[t.id]) return false; seen[t.id] = 1; return true; }), done = {};
     const qs = {}, asg = {};
     at.forEach(function (t) {
       parseDetail(t).forEach(function (d) { const x = done[d.s] = done[d.s] || { done: 0, correct: 0 }; x.done++; x.correct += d.ok; const y = qs[d.q] = qs[d.q] || { n: 0, c: 0, h: '', ts: '' }; y.n++; y.c += d.ok; y.h = (y.h + (d.ok ? '1' : '0')).slice(-8); y.ts = t.ts; });
@@ -309,12 +318,22 @@ const API = {
     // ไม่ใช้ล็อก: เขียนแถวด้วย appendRow (Google ต่อท้ายทีละแถวแบบ atomic ไม่ทับกัน) · กันซ้ำด้วย attemptId: ตัวทำเครื่องหมายในแคช + ตัวอ่านคะแนนข้ามแถว id ซ้ำ
     // (ข้อมูลจากการวัดจริง: ขอล็อก+ปล่อยล็อกใช้ ~0.4 วินาทีต่อครั้ง และเป็นจุดที่ทำให้คำขอต้องรอกัน)
     const cache = CacheService.getScriptCache(), mark = cache.get('aid_' + aid);
+    // กันบันทึกซ้ำ/กันคะแนนหาย: (1) ทำเครื่องหมาย "ส่งแล้ว" หลังเขียนแถวสำเร็จเท่านั้น — ถ้าเขียนพัง เครื่องนักเรียนส่งซ้ำแล้วบันทึกได้จริง
+    // (2) ระหว่างเขียนมีเครื่องหมาย "กำลังเขียน" 2 นาที กันคำขอซ้ำที่มาพร้อมกัน (3) คำขอที่เป็นการส่งซ้ำ (tries > 0) และไม่มีในแคช (เกิน 6 ชม./แคชถูกล้าง) ตรวจจากคอลัมน์ id ในชีต
+    let old = null;
+    if (!mark && cache.get('aidw_' + aid)) throw new Error('กำลังบันทึกผลชุดนี้อยู่ ระบบจะลองใหม่อัตโนมัติ');
+    if (!mark && +p.tries > 0) { old = findAttempt(aid, st.schoolId); tr('sa-checked-sheet'); }
     if (mark) { const m = JSON.parse(mark); res.total = m.total; res.correct = m.correct; res.score = m.score; res.maxScore = m.maxScore; res.pending = !!m.pending; res.dup = true; tr('sa-dup'); }
+    else if (old) { const m = { total: +old.total, correct: +old.correct, score: +old.score, maxScore: +old.maxScore, pending: old.status === 'pending' }; res.total = m.total; res.correct = m.correct; res.score = m.score; res.maxScore = m.maxScore; res.pending = !!m.pending; res.dup = true; cache.put('aid_' + aid, JSON.stringify(m), 21600); tr('sa-dup-sheet'); }
     else {
+      cache.put('aidw_' + aid, '1', 120);
+      try {
+        appendAttempt({ id: aid, ts: new Date().toISOString(), schoolId: st.schoolId, studentId: st.id, level: level, mode: p.mode || '', standard: p.standard || '', total: res.total, correct: res.correct,
+          detail: pending ? '' : JSON.stringify(items.map(function (i) { return { q: level + '-' + i.k.replace('/', '-'), ok: i.ok, s: i.s }; })), score: res.score, maxScore: res.maxScore,
+          status: pending ? 'pending' : 'ok', answers: pending ? JSON.stringify({ keys: keys, answers: ans, rev: rev, why: why.slice(0, 120) }) : JSON.stringify(items.reduce(function (o, i) { o[i.k] = i.yours; return o; }, {})), ms: Date.now() - T });
+      } catch (err) { cache.remove('aidw_' + aid); throw err; } // เขียนไม่สำเร็จ: ไม่ทำเครื่องหมาย ส่งซ้ำแล้วบันทึกได้
       cache.put('aid_' + aid, JSON.stringify({ total: res.total, correct: res.correct, score: res.score, maxScore: res.maxScore, pending: pending }), 21600); tr('sa-marked');
-      appendAttempt({ id: aid, ts: new Date().toISOString(), schoolId: st.schoolId, studentId: st.id, level: level, mode: p.mode || '', standard: p.standard || '', total: res.total, correct: res.correct,
-        detail: pending ? '' : JSON.stringify(items.map(function (i) { return { q: level + '-' + i.k.replace('/', '-'), ok: i.ok, s: i.s }; })), score: res.score, maxScore: res.maxScore,
-        status: pending ? 'pending' : 'ok', answers: pending ? JSON.stringify({ keys: keys, answers: ans, rev: rev, why: why.slice(0, 120) }) : JSON.stringify(items.reduce(function (o, i) { o[i.k] = i.yours; return o; }, {})), ms: Date.now() - T });
+      cache.remove('aidw_' + aid);
       tr('sa-appended');
       if (!pending) try { // ปรับความคืบหน้าในแคชของนักเรียนคนนี้ (ถ้ามีอยู่) แทนการล้างแล้วอ่านทั้งแท็บ Attempts ใหม่
         const pk = 'p_' + st.id, hit = cache.get(pk);
@@ -344,9 +363,9 @@ const API = {
     auth(p, true);
     const prefix = String(p.prefix || ''); if (prefix.length < 4) throw new Error('ต้องระบุ prefix อย่างน้อย 4 ตัวอักษร');
     const sc = tbl('Schools').filter(function (s) { return s.id === String(p.schoolId); })[0];
-    if (!sc || sc.name.indexOf('ทดสอบ') < 0) throw new Error('ลบได้เฉพาะโรงเรียนที่ชื่อมีคำว่า "ทดสอบ"');
-    const rows = tbl('Attempts').filter(function (t) { return t.schoolId === sc.id && t.id.indexOf(prefix) === 0; }).map(function (t) { return t._row; }).sort(function (a, b) { return b - a; });
-    const s = ss().getSheetByName('Attempts'); rows.forEach(function (rw) { s.deleteRow(rw); });
+    if (!sc || !isTestSchool(sc.id)) throw new Error('ลบได้เฉพาะโรงเรียนที่ชื่อมีคำว่า "ทดสอบ"');
+    const rows = attemptsOf(sc.id).filter(function (t) { return t.schoolId === sc.id && t.id.indexOf(prefix) === 0; }).map(function (t) { return t._row; }).sort(function (a, b) { return b - a; });
+    const s = ss().getSheetByName(atSheet(sc.id)); rows.forEach(function (rw) { s.deleteRow(rw); });
     CacheService.getScriptCache().removeAll(tbl('Students').filter(function (x) { return x.schoolId === sc.id; }).map(function (x) { return 'p_' + x.id; }));
     return { deleted: rows.length };
   },
@@ -378,6 +397,10 @@ const API = {
   login: function (p) {
     const u = String(p.username || '').trim().toLowerCase();
     const a = tbl('Admins').filter(function (x) { return x.username.toLowerCase() === u && on(x); })[0];
+    if (!a) { const rq = ss().getSheetByName('Requests') && tbl('Requests').filter(function (r) { return r.username.toLowerCase() === u && r.status !== 'approved'; }).pop();
+      if (rq && hash(rq.salt, p.password) === rq.hash) throw new Error(rq.status === 'pending' ? 'บัญชีนี้รอผู้ดูแลระบบอนุมัติ ยังเข้าสู่ระบบไม่ได้' : 'คำขอใช้งานนี้ไม่ได้รับอนุมัติ ติดต่อผู้ดูแลระบบ');
+      const off = tbl('Admins').filter(function (x) { return x.username.toLowerCase() === u && !on(x); })[0];
+      if (off && hash(off.salt, p.password) === off.hash) throw new Error('บัญชีนี้ถูกปิดใช้งาน ติดต่อผู้ดูแลระบบ'); }
     if (!a || hash(a.salt, p.password) !== a.hash) { Utilities.sleep(600); throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); }
     const token = Utilities.getUuid();
     CacheService.getScriptCache().put('s_' + token, JSON.stringify({ id: a.id, name: a.name, role: a.role, schoolId: a.schoolId }), 21600);
@@ -388,9 +411,10 @@ const API = {
     return {
       me: a,
       schools: tbl('Schools').filter(function (s) { return on(s) && (sup || s.id === a.schoolId); }).map(function (s) { return { id: s.id, name: s.name }; }),
-      allSchools: sup ? tbl('Schools').map(function (s) { return { id: s.id, name: s.name, active: on(s) }; }) : undefined,
-      admins: tbl('Admins').filter(function (x) { return on(x) && (sup || x.schoolId === a.schoolId); })
-        .map(function (x) { return { id: x.id, username: x.username, name: x.name, role: x.role, schoolId: x.schoolId }; })
+      allSchools: sup ? tbl('Schools').map(function (s) { return { id: s.id, name: s.name, active: on(s), isTest: isTestSchool(s.id) }; }) : undefined,
+      admins: tbl('Admins').filter(function (x) { return (sup || on(x)) && (sup || x.schoolId === a.schoolId); })
+        .map(function (x) { return { id: x.id, username: x.username, name: x.name, role: x.role, schoolId: x.schoolId, active: on(x) }; }),
+      pending: sup && ss().getSheetByName('Requests') ? tbl('Requests').filter(function (r) { return r.status === 'pending'; }).length : 0
     };
   },
   saveSchool: function (p) {
@@ -485,7 +509,7 @@ const API = {
     if (p.level !== 'P6' && p.level !== 'M3') throw new Error('ระดับชั้นไม่ถูกต้อง');
     const stu = studentsOf(sid, p.level), by = {}, items = {}, asg = [], seen = {};
     stu.forEach(function (s) { by[s.id] = { id: s.id, room: s.room, no: s.no, name: s.name, n: 0, last: '', qs: {} }; });
-    tbl('Attempts').forEach(function (t) {
+    attemptsOf(sid).forEach(function (t) {
       if (t.schoolId !== sid || t.level !== p.level || seen[t.id] || t.status === 'pending') return; seen[t.id] = 1;
       const s = by[t.studentId]; if (!s) return;
       s.n++; s.last = t.ts;
@@ -500,10 +524,89 @@ const API = {
     });
     return { students: Object.keys(by).map(function (k) { return by[k]; }), items: items, asg: asg, assignments: ss().getSheetByName('Assignments') ? tbl('Assignments').filter(function (x) { return x.schoolId === sid && x.level === p.level && on(x); }).map(asgOut) : [] };
   },
+  // ตั้ง/ยกเลิกโรงเรียนทดสอบ (แอดมินกลาง) · ผลสอบใหม่ของโรงเรียนที่ isTest = TRUE จะเขียนลงแท็บ Attempts_test
+  setSchoolTest: function (p) {
+    auth(p, true); ensureHeaders('Schools');
+    const s = tbl('Schools').filter(function (x) { return x.id === String(p.id); })[0]; if (!s) throw new Error('ไม่พบโรงเรียน');
+    s.isTest = p.isTest === false || p.isTest === 'FALSE' ? '' : 'TRUE'; setRow('Schools', s);
+    CacheService.getScriptCache().removeAll(tbl('Students').filter(function (x) { return x.schoolId === s.id; }).map(function (x) { return 'p_' + x.id; }));
+    return { id: s.id, isTest: s.isTest === 'TRUE' };
+  },
+  // ย้ายผลสอบเดิมของโรงเรียนทดสอบ จาก Attempts → Attempts_test (ไม่ลบข้อมูล: คัดลอกก่อน ตรวจว่าครบ แล้วจึงเอาออกจากแท็บจริง) · ต้องส่ง confirm: 'ย้าย'
+  moveTestAttempts: function (p) {
+    auth(p, true);
+    if (p.confirm !== 'ย้าย') throw new Error('ต้องยืนยันการย้าย');
+    const test = tbl('Schools').filter(function (s) { return isTestSchool(s.id); }).map(function (s) { return s.id; });
+    if (!test.length) throw new Error('ยังไม่มีโรงเรียนที่ตั้ง isTest = TRUE');
+    const rows = tbl('Attempts').filter(function (t) { return test.indexOf(t.schoolId) >= 0; });
+    if (!rows.length) return { moved: 0, schools: test.length };
+    ensureSheet('Attempts_test'); ensureHeaders('Attempts_test');
+    const have = {}; tbl('Attempts_test').forEach(function (t) { have[t.id] = 1; });
+    addMany('Attempts_test', rows.filter(function (t) { return !have[t.id]; }));
+    const now = {}; tbl('Attempts_test').forEach(function (t) { now[t.id] = 1; });
+    const missing = rows.filter(function (t) { return !now[t.id]; });
+    if (missing.length) throw new Error('คัดลอกไม่ครบ ' + missing.length + ' แถว — ยังไม่ลบจากแท็บ Attempts');
+    const s = ss().getSheetByName('Attempts');
+    rows.map(function (t) { return t._row; }).sort(function (a, b) { return b - a; }).forEach(function (rw) { s.deleteRow(rw); });
+    CacheService.getScriptCache().removeAll(rows.map(function (t) { return 'p_' + t.studentId; }).filter(function (k, i, a) { return a.indexOf(k) === i; }));
+    return { moved: rows.length, schools: test.length };
+  },
+
+  /* ----- คำขอใช้งานของครูโรงเรียนอื่น ----- */
+  // สมัคร (ไม่ต้องล็อกอิน): เก็บรหัสผ่านแบบแฮชไว้ในคำขอ · อนุมัติแล้วจึงเป็นบัญชีแอดมินโรงเรียน
+  // กันสมัครรัว: ทั้งระบบไม่เกิน 20 คำขอ/ชั่วโมง · อีเมลเดียวไม่เกิน 3 คำขอ/ชั่วโมง · ช่องกับดักบอท (website) ต้องว่าง
+  requestAccess: function (p) {
+    const c = CacheService.getScriptCache(), hr = Math.floor(Date.now() / 3600000), email = String(p.email || '').trim().toLowerCase();
+    if (String(p.website || '')) { Utilities.sleep(800); return { ok: true }; } // บอท: ตอบเหมือนสำเร็จแต่ไม่บันทึก
+    const nAll = +(c.get('rq_' + hr) || 0), nMail = +(c.get('rqm_' + hr + '_' + email) || 0);
+    if (nAll >= RQ_PER_HOUR) throw new Error('มีคำขอใช้งานจำนวนมากในชั่วโมงนี้ กรุณาลองใหม่ภายหลัง');
+    if (nMail >= 3) throw new Error('อีเมลนี้ส่งคำขอหลายครั้งแล้ว กรุณารอผู้ดูแลระบบตรวจสอบ');
+    const name = String(p.name || '').trim(), school = String(p.school || '').trim(), reason = String(p.reason || '').trim(), u = String(p.username || '').trim();
+    if (!name || !school || !reason) throw new Error('กรุณากรอกชื่อ โรงเรียน และเหตุผลที่ใช้ให้ครบ');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('รูปแบบอีเมลไม่ถูกต้อง');
+    if (!/^[a-zA-Z0-9._-]{4,30}$/.test(u)) throw new Error('ชื่อผู้ใช้ใช้ได้เฉพาะ a-z 0-9 . _ - ยาว 4–30 ตัว');
+    if (String(p.password || '').length < 8) throw new Error('รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร');
+    ensureSheet('Requests');
+    const lu = u.toLowerCase();
+    if (tbl('Admins').some(function (x) { return x.username.toLowerCase() === lu; }) || tbl('Requests').some(function (r) { return r.username.toLowerCase() === lu && r.status === 'pending'; })) throw new Error('ชื่อผู้ใช้นี้ถูกใช้แล้ว เลือกชื่ออื่น');
+    if (tbl('Requests').some(function (r) { return r.email === email && r.status === 'pending'; })) throw new Error('อีเมลนี้มีคำขอที่รออนุมัติอยู่แล้ว');
+    c.put('rq_' + hr, String(nAll + 1), 3700); c.put('rqm_' + hr + '_' + email, String(nMail + 1), 3700);
+    const salt = uid();
+    add('Requests', { id: uid(), ts: new Date().toISOString(), name: name.slice(0, 80), school: school.slice(0, 120), email: email.slice(0, 120), reason: reason.slice(0, 500), username: u, salt: salt, hash: hash(salt, p.password), status: 'pending' });
+    return { ok: true };
+  },
+  requests: function (p) {
+    auth(p, true); if (!ss().getSheetByName('Requests')) return [];
+    return tbl('Requests').filter(function (r) { return r.status === 'pending' || (p.all && r.status); }).reverse().slice(0, 200)
+      .map(function (r) { return { id: r.id, ts: r.ts, name: r.name, school: r.school, email: r.email, reason: r.reason, username: r.username, status: r.status, schoolId: r.schoolId, decidedAt: r.decidedAt }; });
+  },
+  // อนุมัติ: เลือกโรงเรียนเดิม (schoolId) หรือสร้างใหม่ (newSchool) แล้วสร้างบัญชีแอดมินโรงเรียนจากชื่อผู้ใช้/รหัสผ่านที่ครูตั้งไว้ · ปฏิเสธ: เปลี่ยนสถานะเท่านั้น
+  decideRequest: function (p) {
+    const a = auth(p, true), r = ss().getSheetByName('Requests') && tbl('Requests').filter(function (x) { return x.id === String(p.id); })[0];
+    if (!r) throw new Error('ไม่พบคำขอ');
+    if (r.status !== 'pending') throw new Error('คำขอนี้ตัดสินไปแล้ว');
+    if (p.decision === 'reject') { r.status = 'rejected'; r.decidedAt = new Date().toISOString(); r.decidedBy = a.id; setRow('Requests', r); return { status: 'rejected' }; }
+    if (p.decision !== 'approve') throw new Error('ต้องเลือก อนุมัติ หรือ ปฏิเสธ');
+    if (tbl('Admins').some(function (x) { return x.username.toLowerCase() === r.username.toLowerCase(); })) throw new Error('ชื่อผู้ใช้นี้ถูกใช้ไปแล้ว ให้ครูสมัครใหม่ด้วยชื่ออื่น');
+    let sid = String(p.schoolId || '');
+    if (!sid) { const nm = String(p.newSchool || r.school).trim(); if (!nm) throw new Error('กรุณาเลือกหรือตั้งชื่อโรงเรียน'); sid = uid(); add('Schools', { id: sid, name: nm, active: 'Y' }); }
+    else if (!tbl('Schools').some(function (x) { return x.id === sid; })) throw new Error('ไม่พบโรงเรียนที่เลือก');
+    const adminId = uid();
+    add('Admins', { id: adminId, username: r.username, salt: r.salt, hash: r.hash, name: r.name, role: 'school', schoolId: sid, active: 'Y' });
+    r.status = 'approved'; r.adminId = adminId; r.schoolId = sid; r.decidedAt = new Date().toISOString(); r.decidedBy = a.id; setRow('Requests', r);
+    return { status: 'approved', adminId: adminId, schoolId: sid };
+  },
+  // ปิด/เปิดใช้งานบัญชีครูรายคน (ไม่ลบข้อมูล) — เฉพาะแอดมินกลาง · ปิดแล้ว token ที่ล็อกอินค้างอยู่ใช้ต่อไม่ได้ทันที
+  setAdminActive: function (p) {
+    const a = auth(p, true), t = tbl('Admins').filter(function (x) { return x.id === String(p.id); })[0];
+    if (!t) throw new Error('ไม่พบบัญชี');
+    if (t.id === a.id) throw new Error('ปิดบัญชีของตัวเองไม่ได้');
+    t.active = p.active === false || p.active === 'N' ? 'N' : 'Y'; setRow('Admins', t); return { id: t.id, active: on(t) };
+  },
   report: function (p) {
     const a = auth(p), sid = scope(a, p.schoolId), by = {}, std = {};
     const stu = studentsOf(sid, p.level);
-    const seenA = {}; tbl('Attempts').filter(function (t) { if (t.schoolId !== sid || t.level !== p.level || seenA[t.id]) return false; seenA[t.id] = 1; return true; }).forEach(function (t) {
+    const seenA = {}; attemptsOf(sid).filter(function (t) { if (t.schoolId !== sid || t.level !== p.level || seenA[t.id]) return false; seenA[t.id] = 1; return true; }).forEach(function (t) {
       const b = by[t.studentId] = by[t.studentId] || { n: 0, total: 0, correct: 0, last: '' };
       b.n++; b.total += +t.total; b.correct += +t.correct; b.last = t.ts;
       parseDetail(t).forEach(function (d) { const x = std[d.s] = std[d.s] || { total: 0, correct: 0 }; x.total++; x.correct += d.ok; });

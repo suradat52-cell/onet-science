@@ -537,3 +537,8 @@ body.light .fcard{box-shadow:0 2px 10px #1c2a6a22}
   #app.wide .avgrow{grid-template-columns:minmax(200px,280px) 1fr 3.5em 11em}
   #app.wide .avgrow .nm,#app.wide .avgrow .small{grid-column:auto;margin:0}
 }
+
+/* ---- ขอใช้งาน ---- */
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.rq{padding:10px 0;border-top:1px solid var(--line)}.rq:first-of-type{border-top:0}
+.paper .btn.ghost{color:var(--pmute)}

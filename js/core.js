@@ -14,7 +14,7 @@ function toast(t) { const m = $('#msg'); m.textContent = t; m.style.display = 'b
 /* เรียก Apps Script: ตั้งเวลาหมด (อ่าน 30 วินาที · เขียน 60 วินาที) · คำขออ่านที่เหมือนกันและยังรอผลอยู่ใช้คำขอเดิมร่วมกัน ไม่ยิงซ้ำ
    ส่งคะแนนซ้ำได้ปลอดภัย: attemptId เดิมไม่บันทึกซ้ำ · เวลาหมดฝั่งเว็บไม่ได้ยกเลิกงานที่เซิร์ฟเวอร์ (Apps Script ทำต่อจนจบ) */
 let API_TIMEOUT = { read: 30000, write: 60000 };
-const WRITE_ACTIONS = ['submitAttempt', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'resetRoomCode', 'roomCodes'];
+const WRITE_ACTIONS = ['setSchoolTest', 'moveTestAttempts', 'requestAccess', 'decideRequest', 'setAdminActive', 'submitAttempt', 'saveSchool', 'saveAdmin', 'removeAdmin', 'addStudents', 'removeStudent', 'resetRoomCode', 'roomCodes'];
 const INFLIGHT = {};
 function api(action, data) {
   if (!API_URL) return Promise.reject(new Error('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ index.html'));

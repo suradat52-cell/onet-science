@@ -35,8 +35,9 @@ class Sheet {
   getMaxRows() { return Math.max(1000, this.data.length); }
   getRange(r, c, nr = 1, nc = 1) { return new Range(this, r, c, nr, nc); }
   getDataRange() { return new Range(this, 1, 1, this.getLastRow(), this.getLastColumn()); }
-  appendRow(v) { this.getRange(this.getLastRow() + 1, 1, 1, v.length).setValues([v]); }
+  appendRow(v) { if (globalThis.__APPEND_FAIL && this.name === 'Attempts') throw new Error('Service Spreadsheets timed out (จำลอง)'); this.getRange(this.getLastRow() + 1, 1, 1, v.length).setValues([v]); }
   setFrozenRows() {}
+  deleteRow(r) { this.data.splice(r - 1, 1); }
 }
 const book = {}, cache = {};
 const ctx = vm.createContext({
@@ -54,6 +55,7 @@ const ctx = vm.createContext({
   console,
 });
 vm.runInContext(fs.readFileSync(at("apps-script", "Code.gs"), "utf8"), ctx);
+if (fs.existsSync(at("apps-script", "Tests.gs"))) vm.runInContext(fs.readFileSync(at("apps-script", "Tests.gs"), "utf8"), ctx); // ชุดทดสอบที่ผู้ใช้กดรันใน Apps Script (ลองรันที่นี่ผ่าน /__selftest?fn=testAll)
 const call = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).s);
 const must = r => { if (!r.ok) throw new Error(r.error); return r.data; };
 
@@ -74,6 +76,10 @@ fs.writeFileSync(path.join(TOOLS, ".cache", "admin.json"), JSON.stringify({ user
 const MIME = { ".html": "text/html; charset=utf-8", ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".js": "text/javascript", ".json": "application/json", ".css": "text/css", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml" };
 http.createServer((req, res) => {
   if (req.url.startsWith("/__fail")) { globalThis.__FETCH_FAIL = /on=1/.test(req.url); res.writeHead(200); return res.end("fetchfail=" + globalThis.__FETCH_FAIL); } // ทดสอบ: ให้ UrlFetch (โหลดเฉลย) ล้มเหลว
+  if (req.url.startsWith("/__appendfail")) { globalThis.__APPEND_FAIL = /on=1/.test(req.url); res.writeHead(200); return res.end("appendfail=" + globalThis.__APPEND_FAIL); } // ทดสอบ: เขียนแถวผลสอบล้มเหลว
+  if (req.url.startsWith("/__clearcache")) { const ks = Object.keys(cache).filter(k => /^(aid_|p_)/.test(k)); ks.forEach(k => delete cache[k]); res.writeHead(200); return res.end("cleared " + ks.length); } // ทดสอบ: แคชหมดอายุ (เกิน 6 ชม.)
+  if (req.url.startsWith("/__sheet")) { const n = decodeURIComponent((/n=([^&]+)/.exec(req.url) || [])[1] || ""), sh = book[n]; res.writeHead(200, { "Content-Type": "application/json" }); if (!sh) return res.end("null"); const [h, ...rows] = sh.data; return res.end(JSON.stringify(rows.filter(r => r.some(x => x !== "")).map(r => Object.fromEntries(h.map((k, i) => [k, String(r[i] ?? "")]))))); } // ทดสอบ: อ่านแท็บในชีตจำลอง
+  if (req.url.startsWith("/__selftest")) { const fn = (/fn=([A-Za-z_]+)/.exec(req.url) || [])[1] || "testAll"; const n0 = logs.length; let err = ""; try { ctx[fn](); } catch (e) { err = String(e.message || e); } res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); return res.end(logs.slice(n0).join("\n") + (err ? "\nERROR " + err : "")); }
   if (req.method === "POST" && req.url === "/api") {
     let b = ""; req.on("data", d => (b += d));
     req.on("end", () => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(ctx.doPost({ postData: { contents: b } }).s); });

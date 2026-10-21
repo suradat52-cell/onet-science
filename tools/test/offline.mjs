@@ -25,7 +25,7 @@ try {
   await page.evaluate(() => navigator.serviceWorker.ready); await sleep(1500); await page.reload({ waitUntil: "networkidle0" });
   t("service worker ทำงานและคุมหน้า", await page.evaluate(() => !!navigator.serviceWorker.controller));
   await page.type("#cc", cfg.rooms.P6); await page.$eval("#cf", f => f.requestSubmit()); await page.waitForSelector(".pickgrid button"); await page.$eval(".pickgrid button", b => b.click()); await waitText(/ภารกิจวันนี้/);
-  await page.evaluate(() => ACT.nav({ kind: "s", k: "mine" })); await page.waitForSelector("#settings");
+  await page.evaluate(() => run(() => ACT.nav({ kind: "s", k: "mine" }))); // ผ่าน run() เหมือนกดปุ่มจริง (กันหน้าแรกที่โหลดช้าวาดทับ) await page.waitForSelector("#settings");
   await page.$eval("[data-a=offline]", b => b.click()); await page.waitForFunction(() => /เตรียมไว้แล้วเมื่อ/.test(document.getElementById("offst").textContent), { timeout: 120000 });
   t("ดาวน์โหลดเนื้อหาไว้ในเครื่อง: เสร็จ + บันทึกเวลา", true);
   const cached = await page.evaluate(async () => { const ks = await caches.keys(); let n = 0; for (const k of ks) n += (await (await caches.open(k)).keys()).length; return n; });

@@ -72,3 +72,6 @@
 - ซ่อมท่อนประโยคที่ตัวแปลงช่วง 1 หั่นผิด (tools/fix-fragments.mjs) · หัวโจทย์ลงท้าย ":" แสดงคู่กับคำตอบ · บัตรคำใหม่ · จอกว้าง
 - ชุดทดสอบ 17 ชุดผ่านทั้งหมด (เพิ่ม sum-audit, responsive) · เฉลย/คะแนน/ภาพข้อสอบไม่เปลี่ยนตั้งแต่ต้นงาน · Apps Script live @9 ไม่ถูกแตะ
 - UPGRADE.pdf ยังเป็นฉบับ 16 ต.ค. (สร้างใหม่: upgrade-shots after + make-upgrade-pdf)
+
+## ขึ้นเว็บหลักแล้ว 2569-10-21
+- Apps Script live @13 (id เดิม AKfycbx6hs29…) · เว็บหลัก commit 0b9a1a5 · หน้าทดลอง /preview/ ยังอยู่
