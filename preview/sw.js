@@ -4,7 +4,7 @@
    - เนื้อหา content/*: manifest.json ขอจากเน็ตก่อน (ได้ฉบับใหม่) ถ้าไม่ได้ใช้ที่แคช · ไฟล์เนื้อหาที่มี ?v=<hash> เก็บถาวร (เปลี่ยนเนื้อหา = hash ใหม่ = โหลดใหม่เอง)
    - ภาพข้อสอบ (images/): เก็บเมื่อเคยเปิดแล้ว เปิดซ้ำออฟไลน์ได้ (จำกัดจำนวนไม่ให้เต็มเครื่อง)
    - Apps Script (script.google.com) ไม่แคชเด็ดขาด */
-const VER = '4bb883f3e1';
+const VER = 'fed3202b70';
 const SHELL = ['./', 'index.html', 'app.js', 'figs/P6.js', 'figs/M3.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 const C_SHELL = 'onet-shell-' + VER, C_DATA = 'onet-data', C_IMG = 'onet-img', IMG_MAX = 400;
 
