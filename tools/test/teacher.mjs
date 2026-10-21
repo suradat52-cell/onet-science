@@ -77,7 +77,7 @@ const noOverflow = async n => t("ไม่มีแถบเลื่อนแ�
 await page.goto(BASE + "/", { waitUntil: "networkidle0" });
 await page.evaluate(() => { S.token = null; save(); admin(); }); await page.waitForSelector("#lg");
 await page.type("#lg [name=u]", cfg.username); await page.type("#lg [name=p]", cfg.password); await page.$eval("#lg", f => f.requestSubmit());
-await page.waitForSelector("#bnav [data-k=report]"); await click("#bnav [data-k=report]"); await waitText(/ภาพรวม/);
+await page.waitForSelector("#bnav [data-k=report]"); await click("#bnav [data-k=report]"); await waitText(/ภาพรวม/); await click("[data-a=rsub][data-s=room]"); await waitText(/ค่าเฉลี่ยตามมาตรฐาน/);
 await page.select("#al", "P6").catch(() => {}); await page.waitForSelector("table.hm");
 t("รายงาน: heatmap แสดง นักเรียน × มาตรฐาน + แถวเฉลี่ย", (await page.$$("table.hm tr.avg")).length === 1 && (await page.$$eval("table.hm tbody tr, table.hm tr", r => r.length)) >= 3);
 t("รายงาน: ค่าเฉลี่ยตามมาตรฐาน + ผู้ที่ยังไม่ทำ", /ค่าเฉลี่ยตามมาตรฐาน/.test(await text("#app")) && /ยังไม่ได้ทำ/.test(await text("#app")));

@@ -32,7 +32,7 @@ for (const [W, H, tag] of [[360, 780, "มือถือ"], [768, 1024, "แท
   await page.evaluate(() => { saveExam(); clearExam(); S.token = null; S.student = null; save(); admin(); }); await page.waitForSelector("#lg");
   await page.type("#lg [name=u]", cfg.username); await page.type("#lg [name=p]", cfg.password); await page.$eval("#lg", f => f.requestSubmit()); await page.waitForSelector("#bnav [data-k=report]");
   await check("ครู นักเรียน");
-  await page.$eval("#bnav [data-k=report]", b => b.click()); await waitText(/ภาพรวม/); await check("ครู รายงาน");
+  await page.$eval("#bnav [data-k=report]", b => b.click()); await waitText(/ภาพรวม/); await page.$eval("[data-a=rsub][data-s=room]", b => b.click()); await waitText(/ค่าเฉลี่ยตามมาตรฐาน/); await check("ครู รายงาน");
   await page.$eval("[data-a=rmode][data-m=ind]", b => b.click()); await waitText(/ตัวชี้วัด/); await check("ครู heatmap ตัวชี้วัด");
   t(`${tag} ${W}px: ไม่มี JS error`, !errs.length, errs.slice(0, 2).join(" | "));
   await page.close();

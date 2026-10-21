@@ -1,6 +1,6 @@
 /* หน้ารายงานของครู (ช่วง 3): ภาพรวมห้อง (heatmap นักเรียน×ตัวชี้วัด) · วิเคราะห์ข้อสอบ · มอบหมายงาน · เทียบก่อน/หลังเรียน · ส่งออก CSV/PDF · ระบบ (สถานะ)
    ข้อมูลมาจากคำขอเดียว (analytics) แล้วคำนวณในเครื่องครู: จัดกลุ่มตามมาตรฐาน/ตัวชี้วัดด้วย content/<ระดับ>/qidx.json */
-const RS = { sub: 'room', room: '', mode: 'std', an: null, key: '', picked: [] };
+const RS = { stu: '', sub: 'score', room: '', mode: 'std', an: null, key: '', picked: [] };
 const hmClass = p => p === null ? 'hm-' : p >= 80 ? 'hm4' : p >= 65 ? 'hm3' : p >= 50 ? 'hm2' : 'hm1';
 const pctOf = x => x && x.n ? Math.round(x.c * 100 / x.n) : null;
 const addTo = (m, k, n, c) => { const x = m[k] = m[k] || { n: 0, c: 0 }; x.n += n; x.c += c; };
@@ -9,7 +9,7 @@ const fmtDate = ts => { const d = new Date(ts); return isNaN(d) ? '–' : d.toLo
 
 async function loadAn() {
   const key = A.school + '|' + A.level;
-  if (!RS.an || RS.key !== key) { RS.an = await api('analytics', { token: S.token, schoolId: A.school, level: A.level }); RS.key = key; RS.room = ''; RS.picked = []; }
+  if (!RS.an || RS.key !== key) { RS.an = await api('analytics', { token: S.token, schoolId: A.school, level: A.level }); RS.key = key; RS.picked = []; RS.stu = ''; const rs = [...new Set(RS.an.students.map(x => x.room))].sort(); RS.room = rs.length === 1 ? rs[0] : (rs.includes(RS.room) ? RS.room : ''); }
   const lv = A.level, [qidx, meta, srch] = await Promise.all([cj(lv + '/qidx.json'), cj(lv + '/meta.json'), cj(lv + '/search.json', true)]);
   RS.qidx = qidx; RS.meta = meta; RS.stem = {}; (srch || []).forEach(r => { if (r[0] === 'q') RS.stem[r[3]] = r[4]; });
   return RS.an;
@@ -27,10 +27,10 @@ const inRoom = s => !RS.room || s.room === RS.room;
 async function reportBody() {
   if (!A.school) return '<p class="mute">เลือกโรงเรียนก่อน</p>';
   const an = await loadAn(), rooms = [...new Set(an.students.map(s => s.room))].sort();
-  const subs = [['room', 'ภาพรวมห้อง'], ['item', 'วิเคราะห์ข้อสอบ'], ['asg', 'มอบหมายงาน'], ['cmp', 'ก่อน/หลังเรียน'], ['exp', 'ส่งออก']];
+  const subs = [['score', 'คะแนนรายคน'], ['room', 'ภาพรวมห้อง'], ['item', 'วิเคราะห์ข้อสอบ'], ['asg', 'มอบหมายงาน'], ['cmp', 'ก่อน/หลังเรียน'], ['exp', 'ส่งออก']];
   const head = '<div class="seg tsub" role="tablist">' + subs.map(([k, t]) => '<button role="tab" aria-selected="' + (RS.sub === k) + '" data-a="rsub" data-s="' + k + '" class="' + (RS.sub === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div>' +
     '<div class="row noprint" style="margin-bottom:12px"><select id="rr" aria-label="ห้อง"><option value="">ทุกห้อง (' + an.students.length + ' คน)</option>' + rooms.map(r => '<option value="' + esc(r) + '"' + (r === RS.room ? ' selected' : '') + '>ห้อง ' + esc(r) + ' (' + an.students.filter(s => s.room === r).length + ' คน)</option>').join('') + '</select><button class="btn sec sm" data-a="rrefresh">' + ico('refresh') + 'โหลดข้อมูลใหม่</button></div>';
-  return head + ({ room: roomView, item: itemView, asg: asgView, cmp: cmpView, exp: exportView })[RS.sub](an);
+  return head + ({ score: scoreView, room: roomView, item: itemView, asg: asgView, cmp: cmpView, exp: exportView })[RS.sub](an);
 }
 
 /* ---------- ภาพรวมห้อง ---------- */
@@ -101,7 +101,7 @@ function pickPool() {
   const pick = new Set(shuffle(keys).slice(0, n));
   $('#apool').innerHTML = '<p class="mute small">ติ๊กเลือก/ยกเลิกได้ (เลือกอยู่ <b id="apc">' + pick.size + '</b> ข้อ)</p>' + keys.slice().sort().slice(0, 80).map(k => '<label class="chk apk"><input type="checkbox" value="' + esc(k) + '"' + (pick.has(k) ? ' checked' : '') + '><span><b>ปี ' + esc(k.replace('/', ' ข้อ ')) + '</b> <span class="mute small">' + esc((RS.stem[k] || '').slice(0, 50)) + '</span></span></label>').join('');
 }
-app.addEventListener('change', e => { if (e.target.closest && e.target.closest('#apool')) { const c = $('#apc'); if (c) c.textContent = document.querySelectorAll('#apool input:checked').length; } if (e.target.id === 'rr') { RS.room = e.target.value; run(admin); } });
+app.addEventListener('change', e => { if (e.target.closest && e.target.closest('#apool')) { const c = $('#apc'); if (c) c.textContent = document.querySelectorAll('#apool input:checked').length; } if (e.target.id === 'rr') { RS.room = e.target.value; RS.stu = ''; run(admin); } });
 
 /* ---------- เทียบก่อน/หลังเรียน ---------- */
 function cmpView(an) {
@@ -162,4 +162,68 @@ Object.assign(ACT, {
   repdf: async () => { RS.sub = 'room'; await admin(); await prepPrintPage(); window.print(); },
   schoolact: async d => { await api('setSchoolActive', { token: S.token, id: d.id, active: d.on === '1' }); toast(d.on === '1' ? 'เปิดใช้งานโรงเรียนแล้ว' : 'ปิดใช้งานโรงเรียนแล้ว (ข้อมูลยังอยู่ครบ)'); await admin(); },
   diag: async () => { const b = $('#diagout'); b.innerHTML = '<p class="mute">กำลังตรวจ (ใช้เวลาหลายวินาที)…</p>'; try { b.innerHTML = diagHtml(await api('diag', {})); } catch (e) { b.innerHTML = '<p class="mute">' + esc(e.message) + '</p>'; } }
+});
+
+/* ---------- คะแนนรายคน (หน้าแรกของรายงาน สำหรับครูทั่วไป): เลือกห้อง → ตารางทุกคน → กดชื่อ → ตัวชี้วัดที่อ่อน · ดาวน์โหลด Excel ---------- */
+const pctTxt = x => { const p = pctOf(x); return p === null ? '–' : p + '%'; };
+function scoreView(an) {
+  if (RS.stu) return studentView(an, RS.stu);
+  const st = an.students.filter(inRoom).sort((a, b) => a.room.localeCompare(b.room) || (+a.no - +b.no)), { per } = rollup(st), m = RS.meta;
+  const hint = RS.room ? '' : '<p class="mute small noprint">เลือกห้องจากช่องด้านบนเพื่อดูทีละห้อง (ตอนนี้แสดงทุกห้อง)</p>';
+  return hint + '<div class="row noprint" style="margin-bottom:10px"><button class="btn" data-a="xlsx">' + ico('copy') + 'ดาวน์โหลดคะแนน (Excel)</button></div>' +
+    '<article class="paper"><h2>คะแนนนักเรียน' + (RS.room ? ' ห้อง ' + esc(RS.room) : ' ทุกห้อง') + ' (' + st.length + ' คน)</h2><p class="small pmute">ตัวเลขคือ % ที่ทำถูก · กดชื่อเพื่อดูว่าอ่อนตัวชี้วัดไหน</p>' +
+    (st.length ? '<div class="scroll"><table class="hm sc"><tr><th class="sticky">เลขที่ · ชื่อ</th><th>ทำ (ครั้ง)</th><th>ถูกรวม</th>' + m.standards.map(x => '<th title="' + esc(SHORT[x.standard] || '') + '">' + esc(shortStd(x.standard)) + '</th>').join('') + '<th>ล่าสุด</th></tr>' +
+      per.map(r => '<tr><th class="sticky"><button class="linkbtn" data-a="stu" data-id="' + esc(r.s.id) + '">' + esc((RS.room ? '' : r.s.room + '/') + r.s.no + '. ' + r.s.name) + '</button></th><td>' + r.s.n + '</td><td class="' + hmClass(pctOf(r)) + '">' + pctTxt(r) + '</td>' +
+        m.standards.map(x => { const p = pctOf(r.std[x.standard]); return '<td class="' + hmClass(p) + '">' + (p === null ? '–' : p) + '</td>'; }).join('') + '<td>' + (r.s.n ? fmtDate(r.s.last) : 'ยังไม่เคยทำ') + '</td></tr>').join('') + '</table></div>'
+      : '<div class="empty"><p><b>ห้องนี้ยังไม่มีนักเรียน</b></p></div>') + '</article>';
+}
+function studentView(an, id) {
+  const s = an.students.find(x => x.id === id); if (!s) { RS.stu = ''; return scoreView(an); }
+  const { per } = rollup([s]), r = per[0], m = RS.meta;
+  const inds = m.standards.flatMap(x => x.ind.map(i => ({ std: x.standard, ind: i.indicator, desc: i.description, v: r.ind[x.standard + '|' + i.indicator] })));
+  const done = inds.filter(x => x.v && x.v.n).sort((a, b) => pctOf(a.v) - pctOf(b.v) || b.v.n - a.v.n), weak = done.filter(x => pctOf(x.v) < 60), none = inds.filter(x => !x.v || !x.v.n);
+  const row = x => '<tr><td><b>' + esc(x.std + ' ' + x.ind) + '</b><div class="small pmute">' + esc(x.desc) + '</div></td><td class="n ' + hmClass(pctOf(x.v)) + '">' + pctOf(x.v) + '%</td><td class="n">' + x.v.c + '/' + x.v.n + '</td></tr>';
+  return '<div class="row noprint" style="margin-bottom:10px"><button class="btn sec sm" data-a="stu" data-id="">' + ico('back') + 'กลับตารางคะแนน</button></div>' +
+    '<article class="paper"><h2>' + esc(s.room + ' เลขที่ ' + s.no + ' · ' + s.name) + '</h2><div class="kpis"><div><b>' + s.n + '</b><span>ครั้งที่ทำ</span></div><div><b>' + pctTxt(r) + '</b><span>ถูกรวม</span></div><div><b>' + weak.length + '</b><span>ตัวชี้วัดที่ยังอ่อน</span></div><div><b>' + (s.n ? fmtDate(s.last) : '–') + '</b><span>ทำล่าสุด</span></div></div></article>' +
+    '<article class="paper"><h2>ตัวชี้วัดที่ควรเสริม (ถูกน้อยกว่า 60%)</h2>' + (weak.length ? '<div class="scroll"><table class="wide"><tr><th>ตัวชี้วัด</th><th class="n">ถูก</th><th class="n">ข้อ</th></tr>' + weak.map(row).join('') + '</table></div><p class="small pmute">แนะนำ: ให้นักเรียนอ่านสรุปและฝึกตัวชี้วัดเหล่านี้ หรือมอบงานที่แท็บ "มอบหมายงาน"</p>' : '<div class="empty"><p><b>' + (done.length ? 'ไม่มีตัวชี้วัดที่ต่ำกว่า 60%' : 'ยังไม่มีผลการทำข้อสอบ') + '</b></p></div>') + '</article>' +
+    (done.length > weak.length ? '<article class="paper"><h2>ตัวชี้วัดอื่นที่ทำแล้ว</h2><div class="scroll"><table class="wide"><tr><th>ตัวชี้วัด</th><th class="n">ถูก</th><th class="n">ข้อ</th></tr>' + done.filter(x => pctOf(x.v) >= 60).map(row).join('') + '</table></div></article>' : '') +
+    (none.length ? '<article class="paper"><h2>ยังไม่เคยทำ (' + none.length + ' ตัวชี้วัด)</h2><p class="small">' + none.map(x => esc(x.std + ' ' + x.ind)).join(' · ') + '</p></article>' : '');
+}
+/* Excel (.xlsx) สร้างในเครื่อง ไม่ใช้ไลบรารีภายนอก: ไฟล์ zip แบบไม่บีบอัด + XML ของชีต */
+function xlsxBlob(rows) {
+  const enc = new TextEncoder(), x = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const col = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="8"/><col min="2" max="2" width="8"/><col min="3" max="3" width="28"/></cols><sheetData>' +
+    rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => { const ref = col(ci) + (ri + 1); return typeof v === 'number' ? '<c r="' + ref + '"><v>' + v + '</v></c>' : '<c r="' + ref + '" t="inlineStr"' + (ri ? '' : ' s="1"') + '><is><t>' + x(v) + '</t></is></c>'; }).join('') + '</row>').join('') + '</sheetData></worksheet>';
+  const files = {
+    '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="คะแนน" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+    'xl/styles.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf fontId="0"/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>',
+    'xl/worksheets/sheet1.xml': sheet
+  };
+  const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc = d => { let c = 0xFFFFFFFF; for (let i = 0; i < d.length; i++) c = crcT[(c ^ d[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const parts = [], cen = []; let off = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  for (const [name, txt] of Object.entries(files)) {
+    const nm = enc.encode(name), d = enc.encode(txt), c = crc(d);
+    const head = [0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(d.length), ...u32(d.length), ...u16(nm.length), ...u16(0)];
+    parts.push(new Uint8Array(head), nm, d);
+    cen.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(d.length), ...u32(d.length), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nm);
+    off += head.length + nm.length + d.length;
+  }
+  const cs = cen.reduce((n, a) => n + a.length, 0), n = Object.keys(files).length;
+  return new Blob([...parts, ...cen, new Uint8Array([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(n), ...u16(n), ...u32(cs), ...u32(off), 0, 0])], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function scoreRows() {
+  const st = RS.an.students.filter(inRoom).sort((a, b) => a.room.localeCompare(b.room) || (+a.no - +b.no)), { per } = rollup(st), m = RS.meta, num = v => v === null ? '' : v;
+  return [['ห้อง', 'เลขที่', 'ชื่อ-สกุล', 'ครั้งที่ทำ', 'ข้อที่ทำ', 'ข้อที่ถูก', 'ถูก %'].concat(m.standards.map(x => x.standard + ' ' + (SHORT[x.standard] || '') + ' (%)'), ['ตัวชี้วัดที่อ่อน (< 60%)', 'ทำล่าสุด'])]
+    .concat(per.map(r => [r.s.room, +r.s.no || r.s.no, r.s.name, r.s.n, r.n, r.c, num(pctOf(r))].concat(m.standards.map(x => num(pctOf(r.std[x.standard]))),
+      [Object.keys(r.ind).filter(k => r.ind[k].n && pctOf(r.ind[k]) < 60).map(k => k.replace('|', ' ')).join(', '), r.s.n ? r.s.last.slice(0, 10) : ''])));
+}
+Object.assign(ACT, {
+  stu: d => { RS.stu = d.id || ''; return admin(); },
+  xlsx: () => { const a = document.createElement('a'); a.href = URL.createObjectURL(xlsxBlob(scoreRows())); a.download = 'คะแนน-' + LV[A.level] + (RS.room ? '-ห้อง' + RS.room.replace(/[\\/]/g, '-') : '') + '-' + dstr(new Date()) + '.xlsx'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast('ดาวน์โหลดไฟล์ Excel แล้ว'); }
 });
