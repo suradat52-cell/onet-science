@@ -116,6 +116,16 @@ await page.reload({ waitUntil: "networkidle0" }); await waitText(/ภารก�
 t("ตั้งค่าอยู่หลังรีเฟรช", await page.evaluate(() => document.body.classList.contains("light") && document.documentElement.style.getPropertyValue("--fz") === "1.3"));
 await noOverflow("แดชบอร์ด (โหมดกลางวัน ตัวใหญ่มาก)"); await shot("dash-light");
 await page.evaluate(() => { store.del("set"); applySet(); });
+/* ออกจากระบบนักเรียน (เครื่องใช้ร่วมกัน) */
+await page.evaluate(() => run(() => ACT.dash())); await waitText(/ภารกิจวันนี้/);
+t("แถบหัวมีปุ่ม 'ออกจากระบบ' ระหว่างเป็นนักเรียน", await page.evaluate(() => { const b = document.getElementById("who"); return b && !b.hidden && b.dataset.a === "slogout" && /ออกจากระบบ/.test(b.textContent) && b.getBoundingClientRect().height >= 44 && b.getBoundingClientRect().right <= innerWidth; }));
+await page.$eval("#who", b => b.click()); await page.waitForSelector(".pickgrid button");
+t("กดออกจากระบบ → กลับหน้าเลือกชื่อ ห้องเดิม (ไม่ต้องกรอกรหัสใหม่)", await page.evaluate(() => !S.student && !!S.code && document.getElementById("who").hidden));
+t("หน้าเลือกชื่อมีทางเข้า 'สำหรับครู'", !!(await page.$("[data-a=admin]")));
+await page.reload({ waitUntil: "networkidle0" }); await page.waitForSelector(".pickgrid button");
+t("รีเฟรชหลังออกจากระบบ ยังอยู่หน้าเลือกชื่อ (เครื่องไม่จำนักเรียนคนเดิม)", await page.evaluate(() => !S.student));
+await page.$eval("[data-a=admin]", b => b.click()); await page.waitForSelector("#lg");
+t("กด 'สำหรับครู' → หน้าเข้าสู่ระบบแอดมิน", true);
 await browser.close();
 console.log(bad ? `\nล้มเหลว ${bad} รายการ` : "\nผ่านทั้งหมด");
 process.exit(bad ? 1 : 0);

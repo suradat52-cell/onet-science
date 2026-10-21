@@ -25,7 +25,7 @@ async function home() {
   cj(S.level + '/meta.json').catch(() => {}); // เตรียมผังข้อสอบของระดับนี้ไว้ล่วงหน้า
   page('<section class="glass"><h1>เลือกชื่อของนักเรียน</h1><p class="mute">' + esc(S.school || '') + ' · ' + LV[S.level] + ' · ห้อง ' + esc(S.room || '') + '</p><div class="sp"></div>' +
     (ROSTER.length ? '<div class="pickgrid">' + ROSTER.map(s => '<button data-a="pick" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '"><span class="av">' + esc(s.no) + '</span><span>' + esc(s.no) + '. ' + esc(s.name) + '</span></button>').join('') + '</div>' : '<p class="mute">ห้องนี้ยังไม่มีรายชื่อนักเรียน ให้ครูเพิ่มในเมนูแอดมิน</p>') + '</section>' +
-    '<div class="row"><button class="btn sec" data-a="room">เปลี่ยนห้อง (ใส่รหัสใหม่)</button><button class="btn ghost" data-a="res">ผังข้อสอบ สทศ.</button></div>', null);
+    '<div class="row"><button class="btn sec" data-a="room">เปลี่ยนห้อง (ใส่รหัสใหม่)</button><button class="btn ghost" data-a="res">ผังข้อสอบ สทศ.</button></div><button class="btn ghost" data-a="admin">สำหรับครู (เข้าสู่ระบบแอดมิน)</button>', null);
 }
 
 /* ---------- หน้าแรก ---------- */
@@ -315,6 +315,8 @@ function res() {
 /* ---------- ปุ่มของนักเรียน ---------- */
 Object.assign(ACT, {
   home: () => { S.student = null; save(); return home(); },
+  // ออกจากระบบนักเรียน (เครื่องโรงเรียนใช้ร่วมกัน): ลืมชื่อนักเรียนและผลที่โหลดไว้ แต่จำรหัสห้องไว้ คนถัดไปเลือกชื่อตัวเองได้ทันที
+  slogout: () => { const n = S.student && S.student.name; if (typeof clearInterval === 'function' && typeof TMR !== 'undefined') clearInterval(TMR); S.student = null; PR = null; Q = null; save(); toast('ออกจากระบบแล้ว' + (n ? ' (' + n + ')' : '') + ' · เลือกชื่อของคุณเพื่อเข้าใช้'); return home(); },
   dash: () => S.student && S.code ? dash() : home(), res,
   nav: d => { if (d.kind === 't') { A.tab = d.k; return admin(); } return ({ home: dash, exams: examsPage, learn: learnPage, review: reviewPage, mine: minePage })[d.k](); },
   pick: d => { S.student = { id: d.id, name: d.name }; PR = null; save(); return dash(); },

@@ -542,3 +542,9 @@ body.light .fcard{box-shadow:0 2px 10px #1c2a6a22}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .rq{padding:10px 0;border-top:1px solid var(--line)}.rq:first-of-type{border-top:0}
 .paper .btn.ghost{color:var(--pmute)}
+
+/* ---- ปุ่มออกจากระบบบนแถบหัว ---- */
+.whobtn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border-radius:99px;border:1.5px solid var(--line);color:var(--ink);font-weight:600;font-size:.82em;flex:none}
+.whobtn .ico{width:1.2em;height:1.2em}
+.whobtn[hidden]{display:none}
+.top .brand{overflow:hidden;text-overflow:ellipsis}

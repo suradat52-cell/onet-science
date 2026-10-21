@@ -155,7 +155,17 @@ function heroArt() {
 /* ---------- เมนูล่าง 4 ปุ่ม (นักเรียน / ครู) ---------- */
 const NAV_S = [['home', 'หน้าแรก', 'home'], ['exams', 'ข้อสอบ', 'exam'], ['learn', 'สรุป', 'book'], ['review', 'ทบทวน', 'bulb'], ['mine', 'ผลของฉัน', 'chart']];
 const NAV_T = [['students', 'นักเรียน', 'users'], ['report', 'รายงาน', 'chart'], ['admins', 'แอดมิน', 'shield'], ['more', 'อื่น ๆ', 'list']];
+function whoBtn(kind) {
+  let b = document.getElementById('who'); const top = document.querySelector('.top');
+  if (!b && top) { b = document.createElement('button'); b.id = 'who'; b.className = 'whobtn'; top.appendChild(b); }
+  if (!b) return;
+  const st = kind === 's' && S.student, tc = kind === 't' && S.token;
+  b.hidden = !(st || tc);
+  if (st) { b.dataset.a = 'slogout'; b.innerHTML = ico('out') + '<span>ออกจากระบบ</span>'; b.title = 'ออกจากระบบ (' + S.student.name + ') ให้คนอื่นใช้เครื่องนี้'; }
+  if (tc) { b.dataset.a = 'logout'; b.innerHTML = ico('out') + '<span>ออกจากระบบ</span>'; b.title = 'ออกจากระบบครู'; }
+}
 function setNav(kind, cur) {
+  whoBtn(kind);
   $('#lvb').style.display = kind === 't' ? 'none' : ''; // หน้าครูไม่ผูกกับระดับชั้น ซ่อนป้ายระดับ
   const n = $('#bnav');
   if (!kind) { n.classList.remove('on'); n.innerHTML = ''; app.classList.add('nonav'); return; }
