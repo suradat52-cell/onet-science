@@ -43,7 +43,7 @@ async function admin() {
         '<h3>ผังข้อสอบ</h3>' + t([['ระดับ'], ['ปีการศึกษา'], ['มาตรฐาน', 1], ['ตัวชี้วัด', 1], ['จำนวนข้อ', 1]], st.bp.map(x => [LV[x.level] || x.level, x.year, x.standards, x.indicators, x.items])) +
         '<h3>สรุปเนื้อหา รวม ' + sumN(st.sm, x => x.sections) + ' หัวข้อ</h3>' + t([['ระดับ'], ['มาตรฐาน'], ['หัวข้อ', 1], ['ตัวอักษร', 1]], st.sm.map(x => [LV[x.level] || x.level, x.standard, x.sections, x.chars])) + '</article>';
     }
-    body += pwHtml();
+    body += bookHtml(A.schoolName) + pwHtml();
     body += '<div class="sp"></div><button class="btn sec" data-a="logout">' + ico('out') + 'ออกจากระบบ</button><div class="sp"></div><button class="btn ghost" data-a="home">กลับหน้านักเรียน</button>';
   }
   page(head + body, 't', A.tab);

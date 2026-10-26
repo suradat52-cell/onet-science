@@ -5,7 +5,7 @@
    - ภาพข้อสอบ (images/): เก็บเมื่อเคยเปิดแล้ว เปิดซ้ำออฟไลน์ได้ (จำกัดจำนวนไม่ให้เต็มเครื่อง)
    - Apps Script (script.google.com) ไม่แคชเด็ดขาด */
 const VER = '__VER__';
-const SHELL = ['./', 'index.html', 'app.css', 'grade.js', 'js/core.js', 'js/exams-list.js', 'js/rich.js', 'js/learn.js', 'js/student.js', 'js/admin.js', 'js/teacher.js', 'js/boot.js', 'figs/P6.js', 'figs/M3.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const SHELL = ['./', 'index.html', 'app.css', 'grade.js', 'js/core.js', 'js/exams-list.js', 'js/rich.js', 'js/learn.js', 'js/student.js', 'js/admin.js', 'js/teacher.js', 'js/book.js', 'js/boot.js', 'figs/P6.js', 'figs/M3.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 const C_SHELL = 'onet-shell-' + VER, C_DATA = 'onet-data', C_IMG = 'onet-img', IMG_MAX = 400;
 
 self.addEventListener('install', e => {

@@ -562,3 +562,51 @@ table.hm.sc th.sticky{min-width:170px}
 #figview .zb{min-width:44px;font-size:1.2em}
 
 .expbox{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}.expbox .row input{flex:1 1 150px}
+
+/* ===== เล่มติว (พิมพ์): A4 สองคอลัมน์ พื้นขาว · ซ่อนบนจอ ===== */
+#bookdoc{display:none}
+@page book{size:A4;margin:12mm 11mm 14mm;@top-center{content:var(--bkhead);font:8pt 'Noto Sans Thai',sans-serif;color:#555}@bottom-center{content:counter(page);font:8.5pt 'Noto Sans Thai',sans-serif;color:#333}}
+@page book:first{@top-center{content:none}@bottom-center{content:none}}
+@media print{
+  body.print-book>*:not(#bookdoc){display:none!important}
+  body.print-book{background:#fff!important}body.print-book::before{display:none}
+  #bookdoc{display:block;page:book;font:8.7pt/1.34 'Noto Sans Thai',Sarabun,sans-serif;color:#000;background:#fff}
+  #bookdoc *{color:inherit}
+  #bookdoc .bk-cover{break-after:page;height:250mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6mm;border:3pt double #3730a3;padding:20mm;box-sizing:border-box}
+  #bookdoc .bk-logo svg{width:30mm;height:30mm}
+  #bookdoc .bk-sch{font:700 20pt/1.3 Kanit,'Noto Sans Thai',sans-serif;color:#1e1b4b}
+  #bookdoc .bk-cover h1{font:700 30pt/1.25 Kanit,'Noto Sans Thai',sans-serif;margin:0;color:#3730a3}
+  #bookdoc .bk-lv{font:600 17pt Kanit,'Noto Sans Thai',sans-serif}
+  #bookdoc .bk-sub{font-size:12pt}#bookdoc .bk-meta{font-size:9.5pt;color:#444;margin-top:12mm;line-height:1.6}
+  #bookdoc .bk-toc{break-after:page}#bookdoc .bk-toc ol{list-style:none;padding:0;margin:4mm 0;font-size:11pt}
+  #bookdoc .bk-toc li{padding:2.5mm 0;border-bottom:.5pt dotted #777;display:flex;gap:3mm}#bookdoc .bk-toc li span{margin-left:auto;font-size:9.5pt;color:#555}
+  #bookdoc .bk-body{column-count:2;column-gap:8mm;column-fill:balance}
+  #bookdoc .bk-band{column-span:all;margin:3mm 0 2.5mm;padding:1.8mm 3mm;background:#3730a3!important;color:#fff!important;font:600 11.5pt Kanit,'Noto Sans Thai',sans-serif;border-radius:1.5mm;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-toc .bk-band{column-span:none}
+  #bookdoc .bk-qh{column-span:all;margin:3mm 0 2mm;padding:1mm 2mm;border-left:3pt solid #0e7490;background:#ecfeff!important;font:600 10pt Kanit,'Noto Sans Thai',sans-serif;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-topic{margin:0 0 2mm}
+  #bookdoc .th{font-size:9.6pt;margin:2.5mm 0 1mm;padding:1mm 1.8mm;background:#eef2ff!important;border-left:2.5pt solid #3730a3;border-radius:1mm;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .th .tag{font-size:7.5pt;margin-right:1.5mm}#bookdoc .bk-c{font-size:7.5pt;font-weight:400;color:#555}
+  #bookdoc .rich{font-size:8.5pt}#bookdoc .rich h3{font-size:9pt;margin:2mm 0 .8mm;padding:0 0 0 1.8mm;border-left:2pt solid #6366f1}
+  #bookdoc .rich p,#bookdoc .rich li{margin:.8mm 0}#bookdoc .rich ul{margin:.8mm 0;padding-left:4mm}
+  #bookdoc .box{margin:1.2mm 0;padding:1mm 2mm 1.2mm;font-size:8.3pt;break-inside:avoid}
+  #bookdoc .box.multi .bl{padding:.8mm 0 .8mm 5mm}
+  #bookdoc .rich table{font-size:7.9pt}#bookdoc .rich th,#bookdoc .rich td{padding:.5mm 1.2mm}
+  #bookdoc .rich figure{margin:1.5mm 0;break-inside:avoid}#bookdoc .rich figure svg{width:100%!important;max-width:100%!important;height:auto}
+  #bookdoc .figtip,#bookdoc .seen{display:none!important}
+  #bookdoc .bq{break-inside:avoid;margin:0 0 2.2mm;padding:0 0 1.6mm;border-bottom:.5pt solid #aaa;font-size:8.4pt}
+  #bookdoc .bq-h{display:flex;gap:2mm;align-items:baseline;margin-bottom:.6mm}
+  #bookdoc .bq-n{display:inline-block;min-width:5.5mm;text-align:center;background:#1e1b4b!important;color:#fff!important;border-radius:1mm;padding:0 1mm;font-size:8.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bq-src{font-size:6.8pt;color:#666}
+  #bookdoc .bq-stem{margin:0 0 1mm}
+  #bookdoc .bq-img{display:block;max-width:100%;max-height:52mm;width:auto;height:auto;margin:1mm auto;border:.4pt solid #ccc}
+  #bookdoc .bq-ch{list-style:none;margin:.8mm 0 0;padding:0;display:block}#bookdoc .bq-ch.two{display:grid;grid-template-columns:1fr 1fr;column-gap:3mm}
+  #bookdoc .bq-ch li{margin:.5mm 0}#bookdoc .bq-ch li b{display:inline-block;min-width:3.5mm}
+  #bookdoc .subimg{max-height:24mm;max-width:100%;vertical-align:middle}
+  #bookdoc .bq-cx{border-collapse:collapse;width:100%;font-size:8pt}#bookdoc .bq-cx td{border:.4pt solid #888;padding:.5mm 1.2mm}#bookdoc .bq-cx .k{width:5mm;text-align:center}#bookdoc .bq-cx .yn{white-space:nowrap;width:24mm;font-size:7.5pt}
+  #bookdoc .bq-ord span{display:inline-block;margin-right:3mm}
+  #bookdoc .bk-grid{column-span:all;display:grid;grid-template-columns:repeat(6,1fr);gap:1mm 3mm;font-size:9pt;margin-bottom:2mm}
+  #bookdoc .bk-grid b{display:inline-block;min-width:6mm;color:#3730a3}
+  #bookdoc .bk-note{font-size:8pt;color:#555;column-span:all}
+  #bookdoc .bq-sol{break-inside:auto}
+}
