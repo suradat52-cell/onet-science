@@ -1,4 +1,4 @@
-// รอบ 2 ความปลอดภัย: กันเดารหัสห้อง · วันหมดอายุรหัสห้อง · ล็อกแอดมิน 15 นาทีหลังผิด 5 ครั้ง · diag/traces เฉพาะแอดมินกลาง
+// รอบ 2 ความปลอดภัย: ไม่ปิดการกรอกรหัสทั้งระบบ · วันหมดอายุรหัสห้อง · ล็อกแอดมิน 15 นาทีหลังผิด 5 ครั้ง · diag/traces เฉพาะแอดมินกลาง
 // · ย้ายบัญชีแอดมินกลาง (ปิด admin เดิมได้ก็ต่อเมื่อบัญชีใหม่ล็อกอินได้จริงแล้ว) · เปลี่ยนรหัสผ่านตัวเอง · หน้าเว็บ
 //   node tools/test/security.mjs   (ต้องรัน tools/test/server.mjs ก่อน · ยิงเฉพาะเซิร์ฟเวอร์จำลอง)
 import fs from "fs";
@@ -46,16 +46,10 @@ t("ล็อกเฉพาะบัญชีนั้น บัญชีอื�
 await fetch(BASE + "/__uncache?k=ll_schooladm"); // จำลองครบ 15 นาที
 t("พ้นเวลาล็อกแล้วเข้าได้ และนับผิดใหม่จาก 0", (await raw("login", { username: "schooladm", password: "schoolpass1" })).ok && /เหลืออีก 4/.test((await raw("login", { username: "schooladm", password: "x" })).error));
 
-/* กันเดารหัสห้อง */
-let lockMsg = "";
-for (let i = 0; i < 70 && !lockMsg; i++) { const r = await raw("enter", { code: "ZZ" + String(1000 + i) }); if (r.error && /ปิดการกรอกรหัสใหม่/.test(r.error)) lockMsg = r.error; }
-t("เดารหัสผิดรัว ๆ → ระบบปิดการกรอกรหัสใหม่ชั่วคราว", !!lockMsg, lockMsg);
-const okCode = await raw("enter", { code });
-t("ระหว่างปิด: แม้รหัสถูกก็กรอกใหม่ไม่ได้ (เดาต่อไม่ได้)", !okCode.ok && /ปิดการกรอกรหัสใหม่/.test(okCode.error));
-t("ระหว่างปิด: นักเรียนที่อยู่ในห้องแล้วยังดูผล/ส่งคะแนนได้", (await raw("progress", { code, studentId: stu.id })).ok && (await raw("submitAttempt", { attemptId: "sec-1", code, studentId: stu.id, mode: "practice", keys: [], answers: {}, rev: {} })).ok);
-t("ระหว่างปิด: ใช้ studentId ปลอมเป็นทางลัดเดารหัสไม่ได้", (await raw("progress", { code, studentId: "abcdef1234" })).ok === false);
-await fetch(BASE + "/__uncache?k=rc_lock");
-t("พ้นเวลาปิดแล้วกรอกรหัสได้ตามปกติ", (await raw("enter", { code })).ok);
+/* กรอกรหัสผิดรัว ๆ ต้องไม่ทำให้คนอื่นเข้าไม่ได้ (ไม่มีการปิดทั้งระบบ) */
+for (let i = 0; i < 70; i++) await raw("enter", { code: "ZZ" + String(1000 + i) });
+t("กรอกรหัสผิด 70 ครั้ง → รหัสถูกยังเข้าห้องได้", (await raw("enter", { code })).ok);
+t("กรอกรหัสผิด 70 ครั้ง → นักเรียนในห้องยังดูผลได้", (await raw("progress", { code, studentId: stu.id })).ok);
 
 /* ย้ายบัญชีแอดมินกลาง */
 const admins = () => api("adminData", { token: sup }).then(d => d.admins);

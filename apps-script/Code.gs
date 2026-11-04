@@ -157,18 +157,12 @@ function newCode() {
 }
 function normCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 // รหัสห้อง → แถวของห้อง · รหัสผิด/ไม่มี/ถูกปิด = error (หน่วงเวลาเพื่อกันการเดารหัส)
-/* กันการเดารหัสห้อง (ไม่มี IP ใน Apps Script จึงนับรวมทั้งระบบ): กรอกรหัสผิดเกิน RC_FAIL_MAX ครั้งใน 10 นาที → ปิดการ "กรอกรหัสใหม่" 15 นาที
-   ระหว่างปิด: นักเรียนที่เข้าห้องอยู่แล้วใช้งานต่อได้ (คำขอมี studentId ที่อยู่ในห้องนั้นจริง) · การกรอกรหัสใหม่ทุกกรณีถูกปฏิเสธ จึงเดาต่อไม่ได้ */
-const RC_FAIL_MAX = 60, RC_LOCK_SEC = 900;
-function rcFail_() { const c = CacheService.getScriptCache(), k = 'rcf_' + Math.floor(Date.now() / 600000), n = +(c.get(k) || 0) + 1; c.put(k, String(n), 700); if (n >= RC_FAIL_MAX) c.put('rc_lock', '1', RC_LOCK_SEC); }
 function todayStr_() { return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd'); }
 function roomOf(p) {
-  const c = normCode(p && p.code), locked = CacheService.getScriptCache().get('rc_lock');
+  const c = normCode(p && p.code);
   const r = c.length === 6 && tbl('Rooms').filter(function (x) { return x.code === c && on(x); })[0];
   const sc = r && tbl('Schools').filter(function (x) { return x.id === r.schoolId && on(x); })[0];
-  if (locked && !(r && sc && p.studentId && tbl('Students').some(function (s) { return s.id === String(p.studentId) && s.schoolId === r.schoolId && s.level === r.level && s.room === r.room && on(s); })))
-    throw new Error('มีการลองรหัสห้องผิดจำนวนมาก ระบบปิดการกรอกรหัสใหม่ชั่วคราว 15 นาที (นักเรียนที่เข้าห้องอยู่แล้วใช้งานต่อได้)');
-  if (!r || !sc) { rcFail_(); Utilities.sleep(600); throw new Error('รหัสห้องเรียนไม่ถูกต้อง'); } // โรงเรียนที่ถูกปิดใช้งาน = เข้าไม่ได้ (ข้อมูลยังอยู่ครบ)
+  if (!r || !sc) { Utilities.sleep(600); throw new Error('รหัสห้องเรียนไม่ถูกต้อง'); } // โรงเรียนที่ถูกปิดใช้งาน = เข้าไม่ได้ (ข้อมูลยังอยู่ครบ)
   if (r.expires && todayStr_() > r.expires) throw new Error('รหัสห้องนี้หมดอายุแล้ว ขอรหัสใหม่จากครู');
   return r;
 }

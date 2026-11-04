@@ -9,6 +9,8 @@ import { ROOT, TOOLS, BLOCK_REAL_API } from "../lib.mjs";
 
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8")), BASE = `http://localhost:${cfg.port}`;
 const OUT = path.join(TOOLS, ".cache", "book"); fs.mkdirSync(OUT, { recursive: true });
+import sharp from "sharp";
+const sharpPng = f => sharp({ create: { width: 200, height: 200, channels: 3, background: "#c00" } }).png().toFile(f);
 const MAX_PAGES = 100, SAFE = 95; // เผื่อฟอนต์ต่างเครื่อง
 let bad = 0;
 const t = (name, ok, info = "") => { if (!ok) bad++; console.log((ok ? "PASS " : "FAIL ") + name + (ok || !info ? "" : "  " + String(info).slice(0, 220))); };
@@ -48,6 +50,8 @@ try {
       t(`${lv}: ไฟล์ PDF ${kind} ขนาด ${mb.toFixed(1)} MB (ไม่ใหญ่เกิน 25 MB)`, mb < 25);
       const p1 = doc.loadPage(0).toStructuredText().asText();
       t(`${lv}: หน้าปก PDF ${kind} มีชื่อโรงเรียน`, p1.replace(/\s/g, "").includes(school.replace(/\s/g, "")));
+      const edge = []; for (let i = 1; i < pages; i++) { const px = doc.loadPage(i).toPixmap(mupdf.Matrix.scale(1, 1), mupdf.ColorSpace.DeviceGray, false, true), W = px.getWidth(), H = px.getHeight(), pp = px.getPixels(); let c = 0; for (let y = 28; y < H; y++) { for (let x = 0; x < 24; x++) if (pp[y * W + x] < 200) c++; for (let x = W - 24; x < W; x++) if (pp[y * W + x] < 200) c++; } if (c) edge.push(i + 1); }
+      t(`${lv}: PDF ${kind} ไม่มีตัวอักษร/รูปล้นเข้าขอบกระดาษซ้าย-ขวา`, !edge.length, "หน้า " + edge.join(","));
       const pgs = [...Array(pages).keys()].map(i => doc.loadPage(i).toStructuredText().asText().length);
       t(`${lv}: PDF ${kind} ไม่มีหน้าว่าง/แทบว่าง (กระดาษไม่เปลือง)`, pgs.slice(1, -1).every(n => n > 120), pgs.map((n, i) => n <= 120 ? i + 1 : 0).filter(Boolean).join(","));
     }
@@ -65,9 +69,13 @@ try {
   await page.waitForSelector("#bnav [data-k=more]"); await page.$eval("#bnav [data-k=more]", b => b.click()); await page.waitForSelector("#bk-s");
   t("แอดมินโรงเรียนเห็นส่วนพิมพ์เล่ม และชื่อโรงเรียนถูกใส่ให้เอง", await page.$eval("#bk-s", i => i.value.length > 3), await page.$eval("#bk-s", i => i.value));
   await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; window.__bd = !!document.getElementById("bookdoc") && document.body.classList.contains("print-book"); window.__cover = document.querySelector("#bookdoc .bk-sch")?.textContent; }; });
+  const lg = path.join(OUT, "logo-test.png"); await sharpPng(lg); await (await page.$("#bk-logo")).uploadFile(lg);
+  await page.waitForFunction(() => !!document.querySelector("#bk-lg img"), { timeout: 10000 }).catch(() => {});
+  t("อัปโหลดโลโก้โรงเรียนได้ แสดงตัวอย่างและเก็บในเครื่อง", await page.evaluate(() => !!document.querySelector("#bk-lg img") && /^data:image/.test(store.get("bklogo") || "")));
   await page.$eval("#bk-s", i => { i.value = "โรงเรียนพิมพ์ทดสอบ"; }); await page.select("#bk-l", "M3"); await page.$eval("[data-a=bookmain]", b => b.click());
   await page.waitForFunction(() => window.__printed === 1, { timeout: 120000 });
   t("กดพิมพ์เล่ม 1 → ประกอบเล่มแล้วสั่งพิมพ์ ปกมีชื่อโรงเรียนที่กรอก", await page.evaluate(() => window.__bd && window.__cover === "โรงเรียนพิมพ์ทดสอบ"));
+  t("ปกใช้โลโก้ที่อัปโหลด", await page.evaluate(() => /^data:image/.test(document.querySelector("#bookdoc .bk-logo img")?.src || "")));
   await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
   t("พิมพ์เสร็จแล้วเก็บกวาด (ไม่ค้างเล่มในหน้า)", await page.evaluate(() => !document.getElementById("bookdoc") && !document.body.classList.contains("print-book")));
   await page.$eval("[data-a=bookans]", b => b.click()); await page.waitForFunction(() => window.__printed === 2, { timeout: 120000 });

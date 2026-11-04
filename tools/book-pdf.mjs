@@ -8,16 +8,17 @@ import { TOOLS, BLOCK_REAL_API } from "./lib.mjs";
 
 const [lv = "P6", kind = "main", school = "โรงเรียนตัวอย่างวิทยา"] = process.argv.slice(2);
 const cfg = JSON.parse(fs.readFileSync(path.join(TOOLS, ".cache", "admin.json"), "utf8")), OUT = path.join(TOOLS, ".cache", "book"); fs.mkdirSync(OUT, { recursive: true });
+const logo = process.env.BOOK_LOGO && fs.existsSync(process.env.BOOK_LOGO) ? 'data:image/png;base64,' + fs.readFileSync(process.env.BOOK_LOGO).toString('base64') : undefined; // BOOK_LOGO = ไฟล์โลโก้ (ทดสอบ)
 const b = await puppeteer.launch({ executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true, args: BLOCK_REAL_API });
 const p = await b.newPage(); p.on("pageerror", e => console.log("JS error:", e.message));
 await p.goto(`http://localhost:${cfg.port}/`, { waitUntil: "networkidle0" });
-const r = await p.evaluate(async (lv, school, kind) => {
-  const x = await bookBuild(lv, school, kind); let d = document.getElementById("bookdoc"); if (d) d.remove();
+const r = await p.evaluate(async (lv, school, kind, logo) => {
+  const x = await bookBuild(lv, school, kind, logo); let d = document.getElementById("bookdoc"); if (d) d.remove();
   d = document.createElement("div"); d.id = "bookdoc"; d.innerHTML = x.html; document.body.appendChild(d);
   document.documentElement.style.setProperty("--bkhead", JSON.stringify(school + " · " + x.title)); document.body.classList.add("print-book");
   await Promise.all([...d.querySelectorAll("img")].map(i => { i.loading = "eager"; return i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }); })); await bookJpeg(d); fitFigures(d);
   return { n: x.n, title: x.title };
-}, lv, school, kind);
+}, lv, school, kind, logo);
 await p.emulateMediaType("print");
 const file = path.join(OUT, `${lv}-${kind}.pdf`);
 await p.pdf({ path: file, preferCSSPageSize: true, printBackground: true });

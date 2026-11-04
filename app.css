@@ -570,7 +570,10 @@ table.hm.sc th.sticky{min-width:170px}
 @media print{
   body.print-book>*:not(#bookdoc){display:none!important}
   body.print-book{background:#fff!important}body.print-book::before{display:none}
-  #bookdoc{display:block;page:book;font:8.7pt/1.34 'Noto Sans Thai',Sarabun,sans-serif;color:#000;background:#fff}
+  #bookdoc{display:block;page:book;font:8.9pt/1.4 'Noto Sans Thai',Sarabun,sans-serif;color:#000;background:#fff;orphans:3;widows:3}
+  #bookdoc p,#bookdoc li,#bookdoc h3,#bookdoc .th,#bookdoc .bl,#bookdoc tr,#bookdoc .bq-h,#bookdoc .bq-stem,#bookdoc figcaption,#bookdoc .bk-qh{break-inside:avoid}
+  #bookdoc .box{break-inside:auto}#bookdoc .box>b.t{break-after:avoid}
+  #bookdoc .rich table,#bookdoc .rich .scroll,#bookdoc .tw{break-inside:auto;overflow:visible}
   #bookdoc *{color:inherit}
   #bookdoc .bk-cover{break-after:page;height:250mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6mm;border:3pt double #3730a3;padding:20mm;box-sizing:border-box}
   #bookdoc .bk-logo svg{width:30mm;height:30mm}
@@ -587,19 +590,20 @@ table.hm.sc th.sticky{min-width:170px}
   #bookdoc .bk-topic{margin:0 0 2mm}
   #bookdoc .th{font-size:9.6pt;margin:2.5mm 0 1mm;padding:1mm 1.8mm;background:#eef2ff!important;border-left:2.5pt solid #3730a3;border-radius:1mm;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #bookdoc .th .tag{font-size:7.5pt;margin-right:1.5mm}#bookdoc .bk-c{font-size:7.5pt;font-weight:400;color:#555}
-  #bookdoc .rich{font-size:8.5pt}#bookdoc .rich h3{font-size:9pt;margin:2mm 0 .8mm;padding:0 0 0 1.8mm;border-left:2pt solid #6366f1}
+  #bookdoc .rich{font-size:8.8pt}#bookdoc .rich h3{font-size:9pt;margin:2mm 0 .8mm;padding:0 0 0 1.8mm;border-left:2pt solid #6366f1}
   #bookdoc .rich p,#bookdoc .rich li{margin:.8mm 0}#bookdoc .rich ul{margin:.8mm 0;padding-left:4mm}
-  #bookdoc .box{margin:1.2mm 0;padding:1mm 2mm 1.2mm;font-size:8.3pt;break-inside:avoid}
+  #bookdoc .box{margin:1.4mm 0;padding:1mm 2mm 1.2mm;font-size:8.6pt}
   #bookdoc .box.multi .bl{padding:.8mm 0 .8mm 5mm}
   #bookdoc .rich table{font-size:7.9pt}#bookdoc .rich th,#bookdoc .rich td{padding:.5mm 1.2mm}
-  #bookdoc .rich figure{margin:1.5mm 0;break-inside:avoid}#bookdoc .rich figure svg{width:100%!important;max-width:100%!important;height:auto}
+  #bookdoc .rich figure{margin:1.5mm auto;break-inside:avoid;text-align:center}#bookdoc .rich figure svg{width:100%!important;max-width:68mm!important;height:auto;margin:0 auto;display:block}#bookdoc .rich figcaption{font-size:7.6pt;color:#444;margin-top:.5mm}
   #bookdoc .figtip,#bookdoc .seen{display:none!important}
   #bookdoc .bq{break-inside:avoid;margin:0 0 2.2mm;padding:0 0 1.6mm;border-bottom:.5pt solid #aaa;font-size:8.4pt}
   #bookdoc .bq-h{display:flex;gap:2mm;align-items:baseline;margin-bottom:.6mm}
   #bookdoc .bq-n{display:inline-block;min-width:5.5mm;text-align:center;background:#1e1b4b!important;color:#fff!important;border-radius:1mm;padding:0 1mm;font-size:8.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #bookdoc .bq-src{font-size:6.8pt;color:#666}
   #bookdoc .bq-stem{margin:0 0 1mm}
-  #bookdoc .bq-img{display:block;max-width:100%;max-height:52mm;width:auto;height:auto;margin:1mm auto;border:.4pt solid #ccc}
+  #bookdoc .bq-img{display:block;max-width:100%;height:auto;margin:1.2mm auto;border:.4pt solid #bbb;background:#fff}
+  #bookdoc .bq.wide{column-span:all;margin-top:1mm}#bookdoc .bq.wide .bq-ch.two{grid-template-columns:repeat(4,1fr)}
   #bookdoc .bq-ch{list-style:none;margin:.8mm 0 0;padding:0;display:block}#bookdoc .bq-ch.two{display:grid;grid-template-columns:1fr 1fr;column-gap:3mm}
   #bookdoc .bq-ch li{margin:.5mm 0}#bookdoc .bq-ch li b{display:inline-block;min-width:3.5mm}
   #bookdoc .subimg{max-height:24mm;max-width:100%;vertical-align:middle}
@@ -609,4 +613,80 @@ table.hm.sc th.sticky{min-width:170px}
   #bookdoc .bk-grid b{display:inline-block;min-width:6mm;color:#3730a3}
   #bookdoc .bk-note{font-size:8pt;color:#555;column-span:all}
   #bookdoc .bq-sol{break-inside:auto}
+}
+@media print{
+  #bookdoc svg{overflow:visible}
+  #bookdoc b.t+.bl{break-before:avoid}
+  #bookdoc .box:not(.multi){break-inside:avoid}
+}
+@media print{
+  #bookdoc .bk-body>.bk-band{break-before:page}
+  #bookdoc .bk-body>.bk-band:first-child{break-before:auto}
+  #bookdoc .rich tr.hd,#bookdoc .rich tr:first-child{break-after:avoid}
+}
+@media print{
+  /* กรอบสี่เหลี่ยมไม่ขาด: กล่องสั้นไม่ถูกหั่น · กล่องยาวที่ต้องข้ามคอลัมน์/หน้า วาดกรอบครบทั้งสองท่อน */
+  #bookdoc .box,#bookdoc .exm,#bookdoc .exq,#bookdoc .exth,#bookdoc .exan,#bookdoc .flow,#bookdoc .ctab,#bookdoc .bk-qh,#bookdoc .eq{-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  #bookdoc .box:not(.multi),#bookdoc .exm,#bookdoc .flow li,#bookdoc .eq,#bookdoc .ctab tr{break-inside:avoid}
+  #bookdoc .box.multi{break-inside:auto;padding-top:1.4mm;padding-bottom:1.4mm}
+  #bookdoc .box.multi .bl{break-inside:avoid}
+  #bookdoc .box.multi>b.t{break-after:avoid}
+  #bookdoc .box.multi>b.t+.bl{break-after:avoid}
+}
+@media print{#bookdoc .tw.sm,#bookdoc .tw.sm table{break-inside:avoid}#bookdoc .bk-qh{column-span:none;margin:3mm 0 2mm;break-after:avoid}}
+
+@media print{
+  #bookdoc .bk-map{column-span:all;margin:0 0 2mm;break-after:page;text-align:center}
+  #bookdoc .bk-svg{width:100%;max-width:172mm;height:auto;max-height:232mm}
+  #bookdoc .bk-map figcaption{font-size:8pt;color:#444;margin-top:1.5mm}
+  #bookdoc .bk-cheat{column-span:all;width:100%;border-collapse:collapse;font-size:8.2pt;margin:0 0 3mm}
+  #bookdoc .bk-cheat th,#bookdoc .bk-cheat td{border:.5pt solid #999;padding:1.2mm 2mm;vertical-align:top;text-align:left}
+  #bookdoc .bk-cheat tr:first-child th{background:#3730a3!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:8.6pt}
+  #bookdoc .bk-cheat tr{break-inside:avoid}#bookdoc .bk-cheat th{width:28%;background:#eef2ff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-weight:600}
+  #bookdoc .bk-cheat td{width:36%}#bookdoc .bk-cheat td div+div{margin-top:.8mm;padding-top:.8mm;border-top:.4pt dashed #bbb}
+  #bookdoc .bk-ch{column-span:all;border-left-color:#b45309;background:#fffbeb!important}
+  #bookdoc .bq.side{column-span:all}
+  #bookdoc .bq-sd{display:grid;grid-template-columns:1fr auto;gap:4mm;align-items:start}#bookdoc .bq-sd>img{margin:0}
+}
+@media print{#bookdoc figure.bk-map svg.bk-svg{width:100%!important;max-width:172mm!important;max-height:150mm;height:auto}}
+
+.bk-lg{display:flex;align-items:center;gap:10px;margin:6px 0}.bk-lg img{width:64px;height:64px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--line)}
+@media print{#bookdoc .bk-logo img{width:38mm;height:38mm;object-fit:contain}}
+@media print{
+  /* กรอบทุกชนิดไม่ถูกหั่นข้ามคอลัมน์/หน้า (กรอบยาวสุดยังเล็กกว่าคอลัมน์) */
+  #bookdoc .box,#bookdoc .box.multi,#bookdoc .exm,#bookdoc .flow,#bookdoc .eq,#bookdoc .bq,#bookdoc .bq-sol,#bookdoc .topic>.rich>p,#bookdoc .ctab{break-inside:avoid}
+  #bookdoc .box.multi .bl{break-inside:avoid}
+}
+
+@media print{
+  #bookdoc .bk-cc{border:.6pt solid #8b93c9;border-radius:1.4mm;margin:0 0 1.8mm;padding:1mm 2mm 1.2mm;break-inside:avoid;background:#fff}
+  #bookdoc .bk-cct{font-weight:700;font-size:8.8pt;border-bottom:.5pt solid #c7cbe8;padding-bottom:.6mm;margin-bottom:.8mm}
+  #bookdoc .bk-ccl{font-size:8.3pt;margin:.6mm 0;padding-left:1.6mm;border-left:2.2pt solid #16a34a}#bookdoc .bk-ccl.t{border-left-color:#d97706}
+  #bookdoc .bk-ccl b{display:block;font-size:7.4pt;color:#555;font-weight:700}#bookdoc .bk-ccl div+div{margin-top:.5mm}
+  #bookdoc .bk-ch{column-span:none!important;margin:2.5mm 0 1.8mm}
+}
+@media print{#bookdoc .bq.bq-sol{break-inside:auto}#bookdoc .bq-sol .bq-h{break-after:avoid}}
+
+@media print{
+  /* การ์ดสรุปก่อนสอบ v2: สี ไอคอน คำเน้น ภาพย่อ */
+  #bookdoc .bk-cc{border:0;border-radius:2mm;padding:0;overflow:hidden;background:#fff;box-shadow:0 0 0 .7pt var(--c2) inset;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-cct{display:flex;align-items:center;gap:1.6mm;background:var(--c1)!important;border:0;margin:0;padding:1.2mm 2mm;font-size:8.9pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-ind{flex:none;background:var(--c2)!important;color:#fff!important;border-radius:1mm;padding:0 1.4mm;font-size:7.4pt;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-nm{flex:1;font-weight:700;color:#111}#bookdoc .bk-st{flex:none;color:var(--c2)!important;font-size:8.5pt;letter-spacing:.3mm}
+  #bookdoc .bk-cb{padding:1.2mm 2mm 1.4mm}#bookdoc .bk-cb.hasfig{display:grid;grid-template-columns:1fr 26mm;gap:2mm;align-items:center}
+  #bookdoc .bk-thumb svg{width:26mm!important;max-width:26mm!important;height:auto;display:block}
+  #bookdoc .bk-r{display:flex;gap:1.6mm;align-items:flex-start;margin:.7mm 0;font-size:8.4pt;line-height:1.38}
+  #bookdoc .bk-ic{flex:none;width:4.2mm;height:4.2mm;border-radius:50%;display:inline-grid;place-items:center;color:#fff!important;font-size:7pt;font-weight:700;margin-top:.4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-r.k .bk-ic{background:#16a34a!important}#bookdoc .bk-r.t .bk-ic{background:#dc2626!important}#bookdoc .bk-r.a .bk-ic{background:#0e7490!important}
+  #bookdoc .bk-lb{display:inline;font-size:7.4pt;font-weight:700;margin-right:1.2mm}
+  #bookdoc .bk-r.k .bk-lb{color:#15803d!important}#bookdoc .bk-r.t .bk-lb{color:#b91c1c!important}#bookdoc .bk-r.a .bk-lb{color:#0e7490!important}
+  #bookdoc .bk-r b{color:#9a3412!important;background:#fef3c7!important;padding:0 .5mm;border-radius:.6mm;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #bookdoc .bk-ch{border-left:3pt solid #f59e0b;background:#fffbeb!important;font-size:10.5pt}
+}
+
+@media print{
+  /* ภาพในการ์ดสรุปก่อนสอบ: วางใต้ข้อความ กว้างพอให้อ่านป้ายในภาพได้ */
+  #bookdoc .bk-cb.hasfig{display:block}
+  #bookdoc .bk-thumb{margin:1.2mm auto 0;padding-top:1.2mm;border-top:.5pt dashed #ccc;text-align:center}
+  #bookdoc .bk-thumb svg{width:66mm!important;max-width:66mm!important;max-height:52mm;margin:0 auto}
 }
