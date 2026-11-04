@@ -90,6 +90,7 @@ async function flushQ() {
       const att = pend()[0]; if (!att) break;
       const drop = () => store.set(PEND, pend().filter(x => x.attemptId !== att.attemptId));
       try {
+        if (!att.tries) await new Promise(r => setTimeout(r, Math.random() * 2500)); // หน่วงสุ่ม 0–2.5 วินาทีก่อนส่งครั้งแรก: ทั้งห้องกดส่งพร้อมกันแล้วคำขอไม่ชนกัน (ผลบนจอเห็นทันที ไม่รอ)
         const r = await api('submitAttempt', att); drop();
         if (r.pending) { saveState(att, 'บันทึกคะแนนแล้ว (ระบบจะตรวจซ้ำภายหลัง)', 'ok'); PR = null; continue; }
         const ch = att.chk, diff = ch && (+r.score !== +ch.score || +r.correct !== +ch.correct);
@@ -101,7 +102,7 @@ async function flushQ() {
         if (att.tries > 40) { drop(); continue; }
         store.set(PEND, pend().map(x => (x.attemptId === att.attemptId ? att : x)));
         saveState(att, 'ยังบันทึกคะแนนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ', 'bad');
-        flushTimer = setTimeout(flushQ, Math.min(60000, 4000 * att.tries)); break;
+        flushTimer = setTimeout(flushQ, Math.min(60000, 4000 * att.tries) + Math.random() * 3000); break;
       }
     }
   } finally { flushing = false; }
